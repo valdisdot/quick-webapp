@@ -12,7 +12,28 @@ def execute_javascript(script: str):
     Adds JavaScript to the page.
     """
 
-    st.html(f"<script>{str(script)}</script>", unsafe_allow_javascript=True, width="content")
+    wrapped_script = f"""
+    <script>
+        (function() {{
+            {script}
+        }})();
+    </script>
+    """
+    st.components.v1.html(wrapped_script, height=0, width=0)
+
+
+def write_cookie(key: str, value: str, max_age_seconds: int = 86400):
+    """
+    Writes a real HTTP cookie into the parent browser window.
+    """
+    
+    execute_javascript(f'window.parent.document.cookie = "{key}={value}; max-age={max_age_seconds}; path=/;";')
+
+def read_cookie(key: str) -> str | None:
+    """
+    Reads the cookie on the next rerun from the server side.
+    """
+    return st.context.cookies.get(key)
 
 
 def console_log(value: str):
