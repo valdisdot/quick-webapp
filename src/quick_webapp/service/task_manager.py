@@ -9,10 +9,10 @@ class TaskManager:
     Wrapper around an ExecutorService with a task counter.
     """
 
-    def __init__(self):
+    def __init__(self, thread_name_prefix):
         self.__tasks: dict[int, Future] = {}
         self.__lock = threading.Lock()
-        self.__executor = ThreadPoolExecutor()
+        self.__executor = ThreadPoolExecutor(thread_name_prefix=thread_name_prefix)
 
     @staticmethod
     def __schedule(callable_: Callable[[], Any], attempts: int, sleep_interval: float) -> Any:
