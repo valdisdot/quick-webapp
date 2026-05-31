@@ -1,13 +1,17 @@
 from typing import Any
 from collections.abc import Callable
+import logging
+import atexit
 
 class ShutdownHookHolder:
     """
     Wrapper structure for invoking actions during application shutdown.
     """
 
-    def __init__(self):
+    def __init__(self, hook_logger_name: str):
         self.__holder = []
+        self.__logger = logging.getLogger(hook_logger_name)
+        atexit.register(self.terminate)
 
     def add_hook(self, callable: Callable[[], Any]):
         """
@@ -24,5 +28,5 @@ class ShutdownHookHolder:
         while len(self.__holder):
             try:
                 self.__holder.pop()()
-            except Exception as e:
-                print(f"Got an error with a shutdown hook: {e}")
+            except Exception:
+                self.__logger.exception("An exeption occured during shutdown hook execution")
