@@ -1,9 +1,10 @@
+from typing import Any
 from collections.abc import Callable
 import os
 from uuid import uuid4
 import streamlit as st
 from streamlit.navigation.page import StreamlitPage
-from quick_webapp import ensure_session_object
+from quick_webapp import page_session_bean
 from quick_webapp.util.ui import apply_css, execute_javascript
 
 class WebApplication:
@@ -65,7 +66,6 @@ class WebApplication:
         """
 
         self.__webapp = self.__load_webapp__(webapp_dir)
-        self.__webapp_name = webapp_dir
         self.__menu = menu if menu else {}
         self.__menu_coomand_handlers = menu_coomand_handlers if menu_coomand_handlers else {}
         self.__buttons_width = buttons_width if buttons_width else 120
@@ -99,6 +99,13 @@ class WebApplication:
             expanded=False
         )
         return pg
+    
+    def page_session_object(self) -> dict[str, Any]:
+        """
+        Returns a dictionary for current page related session.
+        """
+
+        return page_session_bean()
 
     def at_page_beginning(self, 
                           page_title: str | None = None, 
@@ -126,6 +133,15 @@ class WebApplication:
                 body {
                     margin: 0;
                     line-height: 1.5;
+                }
+
+                div[data-testid="stComponent"] {
+                    margin: 0 !important;
+                    padding: 0 !important;
+                }
+
+                iframe[title="st.iframe"] {
+                    display: none !important;
                 }
                         
                 .block-container {
@@ -175,7 +191,7 @@ class WebApplication:
         items = menu if menu else {}
         items.update(self.__menu)
 
-        session_storage: dict = ensure_session_object(self.__webapp_name)
+        session_storage: dict = self.page_session_object()
         if not "header_uuids" in session_storage:
             uuids = []
             session_storage["header_uuids"] = uuids
@@ -184,7 +200,7 @@ class WebApplication:
 
         i = -1
         for label, page_or_submenu in reversed(items.items()):
-            i = i + 1
+            i += 1
             uuid = session_storage["header_uuids"][i]
             apply_css(f"""
                 .st-key-{uuid}, .st-key-exit {{
