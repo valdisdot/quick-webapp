@@ -22,26 +22,49 @@ def execute_javascript(script: str):
     st.components.v1.html(wrapped_script, height=0, width=0)
 
 
-def write_cookie(key: str, value: str, max_age_seconds: int = 86400):
+def write_cookie(key: str, value: str, max_age_seconds: int):
     """
     Writes a real HTTP cookie into the parent browser window.
     """
     
     execute_javascript(f'window.parent.document.cookie = "{key}={value}; max-age={max_age_seconds}; path=/;";')
 
-def read_cookie(key: str) -> str | None:
-    """
-    Reads the cookie on the next rerun from the server side.
-    """
-    return st.context.cookies.get(key)
 
+def read_cookie(key: str, alter: str | None = None) -> str | None:
+    """
+    Reads the initial cookie on the next rerun from the server side. 
+    The browser refreshing must be called if the application writes cookies in runtime and need to fetch them back.
+    """
+    return st.context.cookies.get(key, alter)
+
+
+def delete_cookie(key: str) -> str | None:
+    """
+    Deletes a real HTTP cookie from the parent browser window.
+    The browser refreshing must be called if the application deletes cookies in runtime and need to ensure they are deleted in streamlit cookies.
+    """
+
+    execute_javascript(f'window.parent.document.cookie = "{key}=; max-age=0; path=/;";')
+
+def get_browser_locate() -> str:
+    """
+    Fetches user browser's locale string.
+    """
+
+    return st.context.locale
+
+def get_browser_timezone() -> str:
+    """
+    Fetches user browser's timezone string.
+    """
+    return st.context.timezone
 
 def console_log(value: str):
     """
     Adds JavaScript to the page to print a log message to the browser console.
     """
 
-    st.html(f"<script>console.log('{str(value)}')</script>", unsafe_allow_javascript=True, width="content")
+    execute_javascript(f"console.log('{str(value)}');")
 
 
 def console_warning(value: str):
@@ -49,7 +72,7 @@ def console_warning(value: str):
     Adds JavaScript to the page to print a warning log message to the browser console.
     """
 
-    st.html(f"<script>console.warn('{str(value)}')</script>", unsafe_allow_javascript=True, width="content")
+    execute_javascript(f"console.warn('{str(value)}');")
 
 
 def console_error(value: str):
@@ -57,7 +80,30 @@ def console_error(value: str):
     Adds JavaScript to the page to print an error log message to the browser console.
     """
 
-    st.html(f"<script>console.error('{str(value)}')</script>", unsafe_allow_javascript=True, width="content")
+    execute_javascript(f"console.error('{str(value)}');")
+
+def restart_script(delay_seconds: float = 0):
+    """
+    Reruns Streamlit script with delay.
+    """
+
+    if delay_seconds > 0:
+        time.sleep(delay_seconds)
+
+    st.rerun()
+
+def restart_browser_window(delay_seconds: float = 0):
+    """
+    Refreshes browser window with delay.
+    """
+        
+    delay_ms = max(0, int(delay_seconds * 1000))
+
+    execute_javascript(f"""
+        setTimeout(() => {{
+            window.parent.location.reload();
+        }}, {delay_ms});
+    """)
 
 
 def apply_css(stylesheet: str):
