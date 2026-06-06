@@ -1,6 +1,7 @@
 
 from typing import Any
 from collections.abc import Callable
+from functools import wraps
 import streamlit as st
 
 
@@ -20,7 +21,7 @@ def ensure_session_object(
         return _session_object_supplier()
     else:
         return {}
-
+    
 
 @st.cache_resource
 def ensure_object(
@@ -38,3 +39,39 @@ def ensure_object(
         return _object_supplier()
     else:
         return {}
+
+
+def session_bean(key: str):
+    """
+    Return the returned object of the wrapped function that lives in the current Streamlit session.
+    """
+
+    def decorator(factory):
+        @wraps(factory)
+        def wrapper():
+            return ensure_session_object(key, factory)
+        return wrapper
+    return decorator
+
+
+def bean(key: str):
+    """
+    Return the returned object of the wrapped function that lives in the global (cached) context.
+    """
+
+    def decorator(factory):
+        @wraps(factory)
+        def wrapper():
+            return ensure_object(key, factory)
+        return wrapper
+    return decorator
+
+
+@session_bean(st.context.url)
+def page_session_bean() -> dict[Any, Any]:
+    """
+    Return a current page object (url based) that lives in the current Streamlit session.
+
+    """
+
+    return {}
