@@ -41,29 +41,47 @@ def ensure_object(
         return {}
 
 
-def session_bean(key: str):
+def session_bean(key: str | None = None):
     """
     Return the returned object of the wrapped function that lives in the current Streamlit session.
     """
 
     def decorator(factory):
+        a_key = factory.__name__ if key is None else key
+
         @wraps(factory)
         def wrapper():
-            return ensure_session_object(key, factory)
+            return ensure_session_object(a_key, factory)
+
         return wrapper
+
+    if callable(key):
+        factory = key
+        key = None
+        return decorator(factory)
+
     return decorator
 
 
-def bean(key: str):
+def bean(key: str | None = None):
     """
     Return the returned object of the wrapped function that lives in the global (cached) context.
     """
 
     def decorator(factory):
+        a_key = factory.__name__ if key is None else key
+
         @wraps(factory)
         def wrapper():
-            return ensure_object(key, factory)
+            return ensure_object(a_key, factory)
+
         return wrapper
+
+    if callable(key):
+        factory = key
+        key = None
+        return decorator(factory)
+
     return decorator
 
 
