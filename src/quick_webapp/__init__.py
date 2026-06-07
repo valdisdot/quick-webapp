@@ -83,13 +83,3 @@ def bean(key: str | None = None):
         return decorator(factory)
 
     return decorator
-
-
-@session_bean(st.context.url)
-def page_session_bean() -> dict[Any, Any]:
-    """
-    Return a current page object (url based) that lives in the current Streamlit session.
-
-    """
-
-    return {}

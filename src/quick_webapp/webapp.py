@@ -4,7 +4,7 @@ import os
 from uuid import uuid4
 import streamlit as st
 from streamlit.navigation.page import StreamlitPage
-from quick_webapp import page_session_bean
+from quick_webapp import ensure_session_object
 from quick_webapp.util.ui import apply_css, execute_javascript
 
 class WebApplication:
@@ -105,7 +105,7 @@ class WebApplication:
         Returns a dictionary for current page related session.
         """
 
-        return page_session_bean()
+        return ensure_session_object(st.context.url)
 
     def at_page_beginning(self, 
                           page_title: str | None = None, 
