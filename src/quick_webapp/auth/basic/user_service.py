@@ -96,7 +96,6 @@ class UserSession:
 
         time.time() > self.__expires_at and self.__locale == locale and self.__timezone == timezone
 
-
 class UserService:
     """
     Service layer class to maintain user-password based authorization.
@@ -116,10 +115,13 @@ class UserService:
     
     Common user methods:
 
+    - fetch_user(user_name: str) to simple fetch the user from data storage
     - register_user(user: User, password: str) to create a User, returns a User object that was returns from the UserDataSource
     - update_user(user: User, password: str | None = None) to edit/update a User, returns a User object that was returns from the UserDataSource
     - lock_user(user_name: str) and unlock_user(user_name: str) methods
     - close_user_sessions(user_name: str) to close all sessions by the username
+    - get_user_sessions(user_name: str) TBD
+    - get_all_user_sessions() TBD
 
     Service methods:
 
@@ -147,7 +149,9 @@ class UserService:
         self.__user_name_validator: Callable[[str], bool] = user_name_validator
         self.__password_validator: Callable[[str], bool] = password_validator
         self.__session_lifespan_seconds = session_lifespan_seconds
+        # user_name: list[session_id]
         self.__user_session_registry: dict[str, list[str]] = {}
+        # session_id: UserSession
         self.__sessions: dict[str, UserSession] = {}
         self.__login_attempts: dict[str, int] = {}
 
@@ -161,7 +165,7 @@ class UserService:
                 used_login_attempts += 1
                 self.__login_attempts[user_name] = used_login_attempts
                 if used_login_attempts >= self.__max_login_attempts:
-                    self.lock_user(user_name)
+                    self.update_user_lock(user_name)
                     raise UserLockedException(f"User '{user_name}' has been locked")
                 return False
             return True
@@ -238,25 +242,20 @@ class UserService:
             return user.requires_password_update
         return False
     
-    def is_allowed(self, session_id: str, with_role: str | list[str]) -> bool:
+    def is_allowed(self, session_id: str, with_roles: str | list[str]) -> bool:
         """
         Checks if the user has the role in their roles. Only session_id is required.
         
         If with_role is null/empty or element of the with_role contains not string, returns False.
         """
 
-        if with_role and len(with_role):
-            if session_id and session_id in self.__sessions:
-                user = self.__sessions.get(session_id).user
-                if isinstance(with_role, str):
-                    return user.has_role(with_role)
-                elif isinstance(with_role, Iterable):
-                    for role in with_role:
-                        if role is None or not isinstance(role, str) or not user.has_role(role):
-                            return False
-                    return True
-            return False
-        return False  
+        return (
+            with_roles and 
+            len(with_roles) and 
+            session_id and 
+            session_id in self.__sessions and
+            self.__sessions.get(session_id).user.has_roles(with_roles)
+        )
 
     def set_password(self, session_id: str, password: str, new_password: str, user_locale: str, user_timezone: str) -> str:
         """
@@ -277,7 +276,7 @@ class UserService:
         if not self.__password_validator(new_password):
             raise InvalidUserDataException("New password does not comply the requirements")
         
-        user = self.get_user(session_id)
+        user = self.get_user(session_id, user_locale, user_timezone)
         user_name = user.user_name
         if not self.__check_user_credentials(user_name, password):
             raise PasswordNotMatchException("Incorrect password for the user")
@@ -317,7 +316,7 @@ class UserService:
 
     def get_user(self, session_id: str, user_locale: str, user_timezone: str) -> User:
         """
-        Fetches a user if session is active. Method is public to be used by administrators.
+        Returns a user if session is active. 
 
         Raises: InvalidUserSessionException, UserNotFoundException
         """
@@ -327,7 +326,39 @@ class UserService:
             if user_session.is_expired or user_session.locale != user_locale or user_session.timezone != user_timezone:
                 raise InvalidUserSessionException(f"User '{user_session.user.user_name}' has an invalid session")
             return user_session.user
-        raise UserNotFoundException("No active session found for a visitor with this session")      
+        raise UserNotFoundException("No active session found for a visitor with this session")    
+
+    def fetch_user(self, user_name: str):
+        """
+        Fetches user by its user_name from the data source.
+
+        Raises: UserNotFoundException
+        """
+
+        if self.__user_data_source.is_user_exist(user_name):
+            try:
+                return self.__user_data_source.get_user(user_name)
+            except UserDataSourceException as e:
+                raise UserLayerException() from e
+            
+        else:
+            raise UserNotFoundException(f"User '{user_name}' is not found")
+        
+    def fetch_users(self, user_name_part: str, offset: int = 0, limit: int = 10, excluding_user_names: list[str] | str | None = None) -> list[User]:
+        try:
+            if offset < 0:
+                offset = 0
+            if limit <= 0:
+                limit = 10
+
+            if excluding_user_names:
+                excluding_user_names = [excluding_user_names] if isinstance(excluding_user_names, str) else excluding_user_names
+
+            return self.__user_data_source.get_users(user_name_part, offset, limit, excluding_user_names)
+            
+        except UserDataSourceException as e:
+            raise UserLayerException() from e
+    
         
     def __validate_user(self, user: User, password: str | None = None, is_registration: bool = True) -> bool:
         if user is None or not isinstance(user, User):
@@ -336,7 +367,7 @@ class UserService:
         if not isinstance(user.roles, Iterable):
             raise InvalidUserDataException("User roles is not iterable")
         
-        roles = self.get_roles()
+        roles = self.fetch_roles()
 
         for role in user.roles:
             if role not in roles:
@@ -377,8 +408,7 @@ class UserService:
             raise InvalidUserDataException("Username does not exist to update")
         try:
             self.__login_attempts[user.user_name] = 0
-            if not user.active or user.locked:
-                self.close_user_sessions(user.user_name)
+            self.close_user_sessions(user.user_name)
 
             if password is None:
                 return self.__user_data_source.update_user(user)
@@ -388,9 +418,9 @@ class UserService:
         except UserDataSourceException as e:
             raise UserLayerException() from e
             
-    def lock_user(self, user_name: str) -> None:
+    def update_user_lock(self, user_name: str, lock: bool = True) -> None:
         """
-        Locks the user. Method is public to be used by administrators.
+        Locks the user by default. Method is public to be used by administrators.
 
         Raises: UserLayerException
         """
@@ -399,23 +429,8 @@ class UserService:
             raise UserLayerException("User name is empty")
         
         try:
-            self.__user_data_source.update_user_lock(user_name, True)
+            self.__user_data_source.update_user_lock(user_name, lock)
             self.close_user_sessions(user_name)
-        except UserDataSourceException as e:
-            raise UserLayerException() from e
-    
-    def unlock_user(self, user_name: str) -> None:
-        """
-        Unlocks the user. Method is public to be used by administrators.
-
-        Raises: UserLayerException
-        """
-
-        if user_name is None or not len(user_name):
-            raise UserLayerException("User name is empty")
-        
-        try:
-            self.__user_data_source.update_user_lock(user_name, False)
         except UserDataSourceException as e:
             raise UserLayerException() from e
 
@@ -443,8 +458,54 @@ class UserService:
             self.__user_session_registry[user_name] = []
             for session_id in session_ids:
                 self.__sessions.pop(session_id)
+
+    def get_user_sessions(self, user_name: str) -> list[tuple[int, int]]:
+        """
+        Returns a list of the user active session interval (timestamp tuple, since and till). Only not expired sessions included.
+        """
+
+        if user_name and user_name in self.__user_session_registry:
+            res = []
+            session_ids = self.__user_session_registry.get(user_name)
+            for session_id in session_ids:
+                session: UserSession = self.__sessions.get(session_id)
+                if session and not session.is_expired:
+                    res.append((session.expires_at - self.__session_lifespan_seconds, session.expires_at))
+            
+            return res
+
+        return []
     
-    def get_roles(self) -> list[str]:
+    def get_all_user_sessions(self, excluding_user_names: list[str] | str | None) -> dict[User, list[tuple[int, int]]]:
+        """
+        Returns a list of all users active session interval (timestamp tuple, since and till). Only not expired sessions included.
+        """
+        
+        res = {}
+        if excluding_user_names is None:
+            excluding_user_names = []
+        elif isinstance(excluding_user_names, str):
+            excluding_user_names = [excluding_user_names]
+
+        for user_name, session_ids in self.__user_session_registry.items():
+            if user_name not in excluding_user_names:
+                if session_ids:
+                    intervals = []
+                    
+                    for session_id in session_ids:
+                        session: UserSession = self.__sessions.get(session_id)
+                        if session and not session.is_expired:
+                            intervals.append((session.expires_at - self.__session_lifespan_seconds, session.expires_at))
+
+                    if intervals:
+                        try:
+                            res[self.__user_data_source.get_user(user_name)] = intervals
+                        except UserDataSourceException as e:
+                            raise UserLayerException() from e
+
+        return res
+
+    def fetch_roles(self) -> list[str]:
         """
         Fetches all user's roles.
         """
