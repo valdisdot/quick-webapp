@@ -1,4 +1,4 @@
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence, Iterable
 from typing import Any
 import time
 from uuid import uuid4
@@ -190,3 +190,80 @@ def render(obj: Any, label: str | None = None):
         else:
             st.write(span_label)
             st.write(repr(obj))
+
+
+def action_table(
+        data: Iterable[Any], 
+        data_mappers: dict[str, Callable[[Any], None]], 
+        action_mappers: dict[str, Callable[[Any], None]], 
+        actions_col_label: str = None, 
+        action_button_type: str = "secondary",
+        table_head_line_color: str = "silver",
+        container_border: bool = True, 
+        container_width: str | int = "stretch", 
+        data_to_action_column_ratios: int | list[int] = 3
+):
+    """
+    Renders data as an action table. On the left it renders data element as a components, based on data_mappers, on the right - action buttons using action_mappers.
+
+    data - the data to render
+    data_mappers - a dictionary where key is used as a column name, value as a callable that will be invoked for the column on each data element.
+    action_mappers - a dcitionary where key is used as a button label, value as a callback on the button clicked.
+    actions_col_label - a column name (for the first column) for action buttons.
+    action_button_type - Streamlit button type for action buttons: 'primary', 'secondary', 'tertiary'
+    table_head_line_color - line color between table head and rendered data (no separator if falsy)
+    container_border - flag to wrap table container in the border
+    container_width - width of the table container, Streamlit constant ('stretch', 'content') or integer
+    data_to_action_column_ratios - a column ration configuration, for a number it defines how much data column is bigger that action column (X to 1), for a list the list is used for st.culumns directly.
+    """
+
+    container = st.container(border = container_border, width=container_width, gap="xxsmall")
+
+    if (isinstance(data_to_action_column_ratios, Iterable)):
+        dif = len(data_mappers) + len(action_mappers) - len(data_to_action_column_ratios)
+        if dif > 0:
+            data_to_action_column_ratios.append(1)
+        
+    else:  
+        data_to_action_column_ratios = (
+            [data_to_action_column_ratios] * len(data_mappers) + [1] * len(action_mappers)
+        )
+
+    with container:
+        header = st.columns(
+            data_to_action_column_ratios,
+            gap="xxsmall",
+            vertical_alignment="center"
+        )
+
+        if table_head_line_color:
+            st.html(f'<hr style="background-color: {table_head_line_color}; border: none; height: 1px">')
+
+    for col, title in zip(header, data_mappers.keys()):
+        with col:
+            st.markdown(f"**{title}**")
+
+    if actions_col_label and action_mappers:
+        header[len(data_mappers)].write(f"**{actions_col_label}**")
+
+    for row_i, obj in enumerate(data):
+        with container:
+            row = st.columns(
+                data_to_action_column_ratios,
+                gap="xxsmall",
+                vertical_alignment="center",
+            )
+
+        for col, data_render in zip(row, data_mappers.values()):
+            with col:
+                data_render(obj)
+
+        for action_i, (action_label, action) in enumerate(action_mappers.items()):
+            with row[len(data_mappers) + action_i]:
+                if st.button(
+                    action_label,
+                    key=f"{row_i}-{action_label}",
+                    width="stretch",
+                    type=action_button_type
+                ):
+                    action(obj)
