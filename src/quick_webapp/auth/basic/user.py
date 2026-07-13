@@ -1,3 +1,5 @@
+from collections.abc import Iterable
+
 class User:
     """
     User record class.
@@ -43,8 +45,19 @@ class User:
 
         return self.__roles.copy()
     
-    def has_role(self, role: str) -> bool:
-        return role in self.__roles
+    def has_roles(self, roles: str | list[str]) -> bool:
+        """
+        Checks if roles in user roles. In case of iterable, one role match is enough to claim true (any of element of roles).
+        If roles neither string nor iterable - returns false.
+        """
+
+        if isinstance(roles, str):
+            return roles in self.__roles
+        elif isinstance(roles, Iterable):
+            for role in roles:
+                if role in self.__roles:
+                    return True
+        return False
     
     @property
     def locked(self):
@@ -57,3 +70,11 @@ class User:
     @property
     def requires_password_update(self):
         return self.__requires_password_update
+    
+    def __eq__(self, other):
+        if not isinstance(other, User):
+            raise ValueError("Comparing object type is not a User")
+        return self.__user_name == other.user_name
+
+    def __hash__(self):
+        return hash(self.__user_name)
