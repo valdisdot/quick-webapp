@@ -148,6 +148,43 @@ class InFileUserDataSource(UserDataSource):
         except Exception as e:
             raise UserDataSourceException("Unexpected error while fetching a user") from e
 
+    def get_users(self, user_name_part: str, offset: int, limit: int, excluding_user_names: list[str] | None = None) -> list[User]:
+        try:
+            users = self.__load_users()
+            part = (user_name_part or "").lower()
+
+            if excluding_user_names is None:
+                excluding_user_names = []
+
+            if part:
+                users = [
+                    user for user in users
+                    if part in str(user.get("user_name", "")).lower() and str(user.get("user_name", "")).lower() not in excluding_user_names
+                ]
+
+            users.sort(key=lambda u: str(u.get("user_name", "")))
+            window = users[offset: offset + limit]
+
+            result: list[User] = []
+            for record in window:
+                result.append(
+                    User(
+                        user_name=record.get("user_name"),
+                        roles=record.get("roles", []),
+                        name=record.get("name"),
+                        locked=bool(record.get("locked", False)),
+                        active=bool(record.get("active", True)),
+                        requires_password_update=bool(record.get("requires_password_update", False)),
+                    )
+                )
+
+            return result
+
+        except UserDataSourceException as e:
+            raise e
+        except Exception as e:
+            raise UserDataSourceException("Unexpected error while fetching users") from e
+
     def update_user_lock(self, user_name: str, lock: bool):
         try:
             user_name = str(user_name)
