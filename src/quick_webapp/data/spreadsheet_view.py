@@ -1,6 +1,7 @@
-import pandas as pd
-from pathlib import Path
 from typing import Any
+from pathlib import Path
+from io import BytesIO
+import pandas as pd
 
 class SpreadsheetViewException(ValueError):
     """
@@ -17,12 +18,12 @@ class SpreadsheetView:
     The first row of each sheet is treated as column headers.
     """
 
-    def __init__(self, file_path: str | Path):
+    def __init__(self, file: str | Path | bytes):
         """
-        Create a view bound to the given Excel file path.
+        Create a view bound to the given Excel file path or blob.
         """
 
-        self.__file_path: Path = Path(file_path)
+        self.__file: str | Path | bytes = file
         self.__sheets: list[str] = []
         self.__data_frames: dict[str, pd.DataFrame] = {}
 
@@ -35,7 +36,7 @@ class SpreadsheetView:
             self.__sheets.clear()
             self.__data_frames.clear()
             self.__data_frames.update(pd.read_excel(
-                self.__file_path,
+                Path(self.__file) if isinstance(self.__file, (str, Path)) else BytesIO(self.__file),
                 sheet_name=None,
                 header=0
             ))
