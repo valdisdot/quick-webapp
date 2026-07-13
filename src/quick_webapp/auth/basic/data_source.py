@@ -42,6 +42,12 @@ class UserDataSource(ABC):
         """
         pass
 
+    def get_users(self, user_name_part: str, offset: int, limit: int, excluding_user_names: list[str] | None = None) -> list[User]:
+        """
+        Fetches Users that have user_name like user_name_part with offset and limit.
+        """
+        pass
+
     @abstractmethod
     def update_user_lock(self, user_name: str, lock: bool):
         """
