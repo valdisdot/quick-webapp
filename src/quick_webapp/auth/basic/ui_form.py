@@ -1,9 +1,8 @@
-from enum import Enum
 from collections.abc import Callable
 import streamlit as st
 import quick_webapp.util.ui as ui
 from quick_webapp.auth.basic.user import User
-from quick_webapp.auth.basic.user_service import UserService, InvalidUserSessionException, UserLockedException, UserNotActiveException, PasswordNotMatchException, UserNotFoundException
+from quick_webapp.auth.basic.user_service import UserService, InvalidUserSessionException, UserLockedException, UserNotActiveException, UserNotFoundException, UserLayerException
 
 def login_form(
         user_service: UserService,
@@ -19,7 +18,7 @@ def login_form(
         exception_text_mapper: Callable[[Exception], str] = lambda exception: str(exception)
     ):
     """
-    Display login dialog.
+    Displays login dialog.
     User session ID will be stored in browser cache with key 'session_id_key' key from this method params and then the gets refreshed.
     If user clicked on register button, browser cache will contain a cookie with 'registration_key' key from this method params set to 1, and then the gets also refreshed.
     """
@@ -82,7 +81,7 @@ def registration_form(
         passwords_do_not_match_text: str = "Passwords do not match!"
     ):
     """
-    Display registration dialog. User only provide username, full name and password, role and active status must be specified withing parameters of this method.
+    Displays registration dialog. User only provide username, full name and password, role and active status must be specified withing parameters of this method.
     The method only registers a user, then the user must login.
     If user clicked on login button or got successfully registered, browser cache will remove a cookie with 'registration_key' key from this method params, and then the gets refreshed.
     """
@@ -143,7 +142,7 @@ def set_password_form(
         passwords_do_not_match_text: str = "Passwords do not match!"
     ):
     """
-    Display set password dialog for a user from the current session.
+    Displays set password dialog for a user from the current session.
     After setting up is successfull, user will be automatically relogged with a new password, all session (including initial one) will be deleted. 
     """
 
@@ -181,18 +180,205 @@ def set_password_form(
 
     dialog()
 
-def logout_button(
-        user_service: UserService,
-        session_id_key: str,
-        button_label: str = "Logout"
-    ):
+def __fetch_user(user_name: str, user_service: UserService) -> User | None:
+    try:
+        return user_service.fetch_user(user_name)
+    except UserLayerException as e:
+        ui.console_error(f"{e}")
+        st.rerun()
+
+def create_user_form(
+    user_service: UserService,
+    title: str = "Create a user",
+    user_name_label: str = "Username",
+    full_name_label: str | None = "Full name",
+    password_label: str = "Password",
+    confirm_password_label: str = "Confirm password",
+    roles_label: str = "Roles",
+    is_active_label: str = "Active",
+    is_locked_label: str = "Locked",
+    is_password_set_required_label: str = "Require password set",
+    create_button_label: str = "Create",
+    exception_text_mapper: Callable[[Exception], str] = lambda exception: str(exception),
+    passwords_do_not_match_text: str = "Passwords do not match!",
+):
     """
-    Display a simple logout button to loggout current user session.
+    Displays a form to create a user.
+    Reruns Streamlit script if registration is successful.
     """
 
-    if st.button(button_label, type="secondary"):
-        session_id = ui.read_cookie(session_id_key)
-        if session_id:
-            user_service.logout(session_id)
-            ui.delete_cookie(session_id_key)
-            ui.restart_browser_window()
+    @st.dialog(title, width="small", dismissible=True)
+    def dialog():
+        user_name = st.text_input(user_name_label)
+        full_name = (
+            st.text_input(full_name_label) if full_name_label is not None else None
+        )
+        password = st.text_input(password_label, type="password")
+        confirm_password = st.text_input(confirm_password_label, type="password")
+        roles = st.multiselect(roles_label, user_service.fetch_roles())
+        is_active = st.toggle(is_active_label, True)
+        is_locked = st.toggle(is_locked_label)
+        is_password_set_required = st.toggle(is_password_set_required_label, True)
+
+        error = None
+
+        with st.container(
+            width="stretch",
+            horizontal=True,
+            horizontal_alignment="right",
+            vertical_alignment="center",
+        ):
+            if st.button(create_button_label, type="primary"):
+                if user_name and password and confirm_password:
+                    user_name = user_name.strip()
+                    full_name = full_name.strip() if full_name is not None else None
+                    password = password.strip()
+
+                    if password != confirm_password.strip():
+                        error = passwords_do_not_match_text
+                    elif len(user_name) and len(password):
+                        try:
+                            user_service.register_user(
+                                User(
+                                    user_name,
+                                    roles,
+                                    full_name,
+                                    is_locked,
+                                    is_active,
+                                    is_password_set_required,
+                                ),
+                                password,
+                            )
+                            st.rerun()
+
+                        except Exception as e:
+                            error = exception_text_mapper(e)
+
+        if error:
+            st.error(error)
+
+    dialog()
+
+def edit_user_form(
+    user_name: str,
+    user_service: UserService,
+    title: str = "Edit a user",
+    full_name_label: str | None = "Full name",
+    password_label: str = "Password",
+    confirm_password_label: str = "Confirm password",
+    roles_label: str = "Roles",
+    is_active_label: str = "Active",
+    is_locked_label: str = "Locked",
+    is_password_set_required_label: str = "Require password set",
+    save_button_label: str = "Save",
+    exception_text_mapper: Callable[[Exception], str] = lambda exception: str(exception),
+    passwords_do_not_match_text: str = "Passwords do not match!",
+):
+    """
+    Displays a form to edit a user.
+    Reruns Streamlit script if update is successful.
+    """
+
+    @st.dialog(title, width="small", dismissible=True)
+    def dialog(user: User):
+        st.text_input(
+            user_name, user_name, label_visibility="hidden", disabled=True
+        )
+        full_name = (
+            st.text_input(full_name_label, user.name)
+            if full_name_label is not None
+            else None
+        )
+        password = st.text_input(password_label, type="password")
+        confirm_password = st.text_input(confirm_password_label, type="password")
+        roles = st.multiselect(roles_label, user_service.fetch_roles(), user.roles)
+        is_active = st.toggle(is_active_label, user.active)
+        is_locked = st.toggle(is_locked_label, user.locked)
+        is_password_set_required = st.toggle(
+            is_password_set_required_label, user.requires_password_update
+        )
+
+        error = None
+
+        with st.container(
+            width="stretch",
+            horizontal=True,
+            horizontal_alignment="right",
+            vertical_alignment="center",
+        ):
+            if st.button(save_button_label, type="primary"):
+                full_name = (
+                    None
+                    if (full_name is None or len(full_name.strip()) == 0)
+                    else full_name
+                )
+                do_pass = True
+
+                if password and password.strip():
+                    if password != confirm_password.strip():
+                        do_pass = False
+                        error = passwords_do_not_match_text
+
+                else:
+                    password = None
+
+                if do_pass:
+                    try:
+                        user_service.update_user(
+                            User(
+                                user_name,
+                                roles,
+                                full_name if full_name else user.name,
+                                is_locked,
+                                is_active,
+                                is_password_set_required,
+                            ),
+                            password,
+                        )
+                        st.rerun()
+
+                    except Exception as e:
+                        error = exception_text_mapper(e)
+
+        if error:
+            st.error(error)
+
+    dialog(__fetch_user(user_name, user_service))
+
+def manage_user_form(
+    user_name: str,
+    user_service: UserService,
+    title: str = "Manage a user",
+    active_label: str = "Active",
+    not_active_label: str = "Not active",
+    sessions_label: str = "Sessions",
+    lock_label: str = "Lock",
+    unlock_label: str = "Unlock",
+    logout_label: str = "Logout"
+):
+    """
+    Displays a form to manage a user (lock and close sessions).
+    Reruns Streamlit script if saving is successful.
+    """
+
+    @st.dialog(title, width="small", dismissible=True)
+    def dialog(user: User):
+        with st.container(horizontal=True):
+            st.write(f"**{user.user_name}**")
+            if user.name:
+                st.write(f"({user.name})")
+        
+        st.badge(active_label if user.active else not_active_label, color="green" if user.active else "gray")
+        st.write(f"{sessions_label}: {len(user_service.get_user_sessions(user_name))}")
+
+        with st.container(horizontal=True):
+            if st.button(unlock_label if user.locked else lock_label, type="secondary" if user.locked else "primary"):
+                user_service.update_user_lock(user_name, not user.locked)
+                user = __fetch_user(user_name, user_service)
+            
+            if st.button(logout_label, type="primary"):
+                user_service.close_user_sessions(user.user_name)
+                user = __fetch_user(user_name, user_service)
+
+    dialog(__fetch_user(user_name, user_service))
+
