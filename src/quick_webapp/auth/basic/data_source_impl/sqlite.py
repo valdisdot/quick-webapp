@@ -139,6 +139,60 @@ class SQLiteUserDataSource(UserDataSource):
         except Exception as e:
             raise UserDataSourceException("Unexpected error while fetching a user") from e
 
+    def get_users(self, user_name_part: str, offset: int, limit: int, excluding_user_names: list[str] | None = None) -> list[User]:
+        try:
+            part = (user_name_part or "")
+            params: list[object] = []
+            where_clauses: list[str] = []
+
+            if part:
+                where_clauses.append("user_name LIKE ?")
+                params.append(f"%{part}%")
+
+            if excluding_user_names:
+                excluded = [str(u) for u in excluding_user_names if u is not None and len(str(u))]
+                if excluded:
+                    placeholders = ",".join(["?"] * len(excluded))
+                    where_clauses.append(f"user_name NOT IN ({placeholders})")
+                    params.extend(excluded)
+
+            where_sql = ""
+            if where_clauses:
+                where_sql = " WHERE " + " AND ".join(where_clauses)
+
+            query = f"SELECT * FROM user{where_sql} ORDER BY user_name LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+
+            cur = self.__connection.execute(query, tuple(params))
+            rows = cur.fetchall()
+
+            users: list[User] = []
+            for row in rows:
+                user_name = row["user_name"]
+                roles_cur = self.__connection.execute(
+                    "SELECT DISTINCT role FROM user_role WHERE user_name = ?",
+                    (user_name,),
+                )
+                roles = [r["role"] for r in roles_cur.fetchall()]
+
+                users.append(
+                    User(
+                        user_name=row["user_name"],
+                        roles=roles,
+                        name=row["name"],
+                        locked=bool(row["locked"]),
+                        active=bool(row["active"]),
+                        requires_password_update=bool(row["requires_password_update"]),
+                    )
+                )
+
+            return users
+
+        except sqlite3.DatabaseError as e:
+            raise UserDataSourceException("Database error while fetching users") from e
+        except Exception as e:
+            raise UserDataSourceException("Unexpected error while fetching users") from e
+
     def update_user_lock(self, user_name: str, lock: bool):
         try:
             self.__connection.execute(
