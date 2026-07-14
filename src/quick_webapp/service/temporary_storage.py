@@ -69,8 +69,24 @@ class TemporaryStorage:
 
         with open(path, "rb") as f:
             return f.read()
+
+    def delete_binary(self, name: str):
+        """
+        Deletes file if present, do nothing otherwise.
+        """
+
+        file_id = self.__registry.pop(name, None)
+        if file_id is None:
+            return
+
+        path = self.__TEMP_DIR / file_id
+
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
         
-    def clear(self):
+    def delete_all(self):
         """
         Deletes all temporary files and clears the registry.
         """
