@@ -280,7 +280,7 @@ class WebApplication:
         self.__header_buttons_gap = header_buttons_gap if header_buttons_gap else 10
 
     @staticmethod
-    def page_session_object() -> dict[str, Any]:
+    def page_session_object() -> dict[Any, Any]:
         """
         Returns a dictionary for current page related session (by its URL).
         """
