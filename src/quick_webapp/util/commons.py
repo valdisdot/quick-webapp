@@ -30,3 +30,23 @@ def get_file_paths(root: str | Path | None, extension: str | None, *path_nodes: 
         for path in search_dir.rglob(f"*.{extension}" if extension is not None else "*")
         if path.is_file()
     )
+
+def get_environment(path: str | None = ".env", push_to_env: bool | None = None):
+    """
+    Loads and returns environment variables from the specified .env file.
+    Optionally pushes result to the os.environ
+    """
+
+    env = {}
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                key, value = line.split("=", 1)
+                env[key] = value
+    
+    if push_to_env:
+        for key, value in env.items():
+            os.environ[key] = value
+    
+    return env
