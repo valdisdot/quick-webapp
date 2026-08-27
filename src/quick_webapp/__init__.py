@@ -1,8 +1,12 @@
+from __future__ import annotations
 
-from typing import Any
 from collections.abc import Callable
 from functools import wraps
+from typing import Any, TypeVar, overload, cast
 import streamlit as st
+
+T = TypeVar("T")
+DecoratorT = Callable[[Callable[[], T]], Callable[[], T]]
 
 
 @st.cache_resource(scope="session")
@@ -19,9 +23,7 @@ def ensure_session_object(
 
     if _session_object_supplier is not None and isinstance(_session_object_supplier, Callable):
         return _session_object_supplier()
-    else:
-        return {}
-    
+    return {}
 
 @st.cache_resource
 def ensure_object(
@@ -37,49 +39,80 @@ def ensure_object(
 
     if _object_supplier is not None and isinstance(_object_supplier, Callable):
         return _object_supplier()
-    else:
-        return {}
+    return {}
 
 
-def session_bean(key: str | None = None):
+@overload
+def session_bean(__func: Callable[[], T], /) -> Callable[[], T]: ...
+
+@overload
+def session_bean(*, key: str | None = None) -> DecoratorT[T]: ...
+
+def session_bean(
+    __func: Callable[[], T] | None = None,
+    /,
+    *,
+    key: str | None = None,
+) -> Callable[[], T] | DecoratorT[T]:
     """
     Return the returned object of the wrapped function that lives in the current Streamlit session.
+
+    Usable as:
+      @session_bean
+      def f() -> T: ...
+
+    or:
+      @session_bean(key="some_key")
+      def f() -> T: ...
     """
 
-    def decorator(factory):
+    def decorator(factory: Callable[[], T]) -> Callable[[], T]:
         a_key = factory.__name__ if key is None else key
 
         @wraps(factory)
-        def wrapper():
-            return ensure_session_object(a_key, factory)
+        def wrapper() -> T:
+            return cast(T, ensure_session_object(a_key, factory))
 
         return wrapper
 
-    if callable(key):
-        factory = key
-        key = None
-        return decorator(factory)
+    if __func is not None:
+        return decorator(__func)
 
     return decorator
 
+@overload
+def bean(__func: Callable[[], T], /) -> Callable[[], T]: ...
 
-def bean(key: str | None = None):
+@overload
+def bean(*, key: str | None = None) -> DecoratorT[T]: ...
+
+def bean(
+    __func: Callable[[], T] | None = None,
+    /,
+    *,
+    key: str | None = None,
+) -> Callable[[], T] | DecoratorT[T]:
     """
     Return the returned object of the wrapped function that lives in the global (cached) context.
+
+    Usable as:
+      @bean
+      def f() -> T: ...
+
+    or:
+      @bean(key="some_key")
+      def f() -> T: ...
     """
 
-    def decorator(factory):
+    def decorator(factory: Callable[[], T]) -> Callable[[], T]:
         a_key = factory.__name__ if key is None else key
 
         @wraps(factory)
-        def wrapper():
-            return ensure_object(a_key, factory)
+        def wrapper() -> T:
+            return cast(T, ensure_object(a_key, factory))
 
         return wrapper
 
-    if callable(key):
-        factory = key
-        key = None
-        return decorator(factory)
-
+    if __func is not None:
+        return decorator(__func)
     return decorator
