@@ -4,7 +4,7 @@ import time
 from uuid import uuid4
 from pandas import DataFrame
 import streamlit as st
-from quick_webapp.data.data_view import DataView
+from quick_webapp.util.data.data_view import DataView
 
 
 def execute_javascript(script: str):
