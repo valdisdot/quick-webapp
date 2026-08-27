@@ -361,20 +361,19 @@ class LLMClient(ABC):
 class OpenAICompatibleClient(LLMClient): 
     __request_id = 0
 
-    def __init__(self, host: str, port: int, api_key: str):
+    def __init__(self, api_key: str, host: str, port: int | None = None):
         super().__init__()
-        self.__host = host
-        self.__port = port
+        self.__url = host + f"{(':' + str(port)) if port else ''}"
         self.__api_key = api_key
         self.__requests = {}
     
     def support_images(self) -> bool:
-        properties_object = requests.get(url=f"{self.__host}:{self.__port}/props", headers={"Authorization": f"Bearer {self.__api_key}"}).json();
+        properties_object = requests.get(url=f"{self.__url}/props", headers={"Authorization": f"Bearer {self.__api_key}"}).json();
         return properties_object.get("modalities") and properties_object.get("modalities").get("vision") == True
 
     def ping(self) -> bool: 
         response = requests.get(
-            url=f"{self.__host}:{self.__port}/models",
+            url=f"{self.__url}/models",
             headers={"Authorization": f"Bearer {self.__api_key}"},
             timeout=30,
         )
@@ -419,7 +418,7 @@ class OpenAICompatibleClient(LLMClient):
 
             payload["messages"].append(message_object)
 
-        response = requests.post(url=f"{self.__host}:{self.__port}/v1/chat/completions", headers={"Authorization": f"Bearer {self.__api_key}", "Content-Type": "application/json"}, data=json.dumps(payload), stream=True)
+        response = requests.post(url=f"{self.__url}/v1/chat/completions", headers={"Authorization": f"Bearer {self.__api_key}", "Content-Type": "application/json"}, data=json.dumps(payload), stream=True)
         if response.status_code != 200: raise LLMClientException("Server finished response with code: " + response.status_code)
 
         for line in response.iter_lines(decode_unicode=True):
