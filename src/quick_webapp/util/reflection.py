@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any
 import ast
-
+import tokenize
 from quick_webapp.util.commons import get_file_paths
 
 
@@ -31,31 +31,28 @@ def scan_params(
 
     for path_str in get_file_paths(package_root, "py", *package_path):
         path = Path(path_str)
-        tree = ast.parse(path.read_text())
+
+        with tokenize.open(path) as f:
+            source = f.read()
+
+        tree = ast.parse(source, filename=str(path))
 
         calls: list[dict[str, Any]] = []
-
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
                 continue
 
             matches = (
-                isinstance(node.func, ast.Name)
-                and node.func.id == function_name
+                isinstance(node.func, ast.Name) and node.func.id == function_name
             ) or (
-                isinstance(node.func, ast.Attribute)
-                and node.func.attr == function_name
+                isinstance(node.func, ast.Attribute) and node.func.attr == function_name
             )
-
             if not matches:
                 continue
 
             calls.append({
                 "args": [_ast_to_value(arg) for arg in node.args],
-                "kwargs": {
-                    kw.arg: _ast_to_value(kw.value)
-                    for kw in node.keywords
-                },
+                "kwargs": {kw.arg: _ast_to_value(kw.value) for kw in node.keywords if kw.arg is not None},
             })
 
         result[path] = calls
