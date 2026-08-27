@@ -390,7 +390,7 @@ class WebApplication:
         page_title: str | None = None,
         header_menu: dict[str, str | Path | dict[str, str | Path]] = None,
         styles: list[str] = None,
-        page_title_render: Callable[[str], None] = None
+        page_title_render: Callable[[str], Any] = None
     ):
         """
         Render header, base styles and the header menu at the page start.
