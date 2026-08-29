@@ -8,14 +8,13 @@ import streamlit as st
 T = TypeVar("T")
 DecoratorT = Callable[[Callable[[], T]], Callable[[], T]]
 
-
 @st.cache_resource(scope="session")
 def ensure_session_object(
     session_object_key: str,
     _session_object_supplier: Callable[[], Any] | None = None,
 ) -> Any:
     """
-    Return an object that lives in the current Streamlit session.
+    Returns an object that lives in the current Streamlit session.
 
     If ``_session_object_supplier`` is provided and is callable, it is used
     to create the object. Otherwise, an empty dictionary is returned.
@@ -31,7 +30,7 @@ def ensure_object(
     _object_supplier: Callable[[], Any] | None = None,
 ) -> Any:
     """
-    Return an object that lives in the global (cached) context.
+    Returns an object that lives in the global (cached) context.
 
     If ``_object_supplier`` is provided and is callable, it is used
     to create the object. Otherwise, an empty dictionary is returned.
@@ -55,7 +54,7 @@ def session_bean(
     key: str | None = None,
 ) -> Callable[[], T] | DecoratorT[T]:
     """
-    Return the returned object of the wrapped function that lives in the current Streamlit session.
+    Returns the returned object of the wrapped function that lives in the current Streamlit session.
 
     Usable as:
       @session_bean
@@ -93,7 +92,7 @@ def bean(
     key: str | None = None,
 ) -> Callable[[], T] | DecoratorT[T]:
     """
-    Return the returned object of the wrapped function that lives in the global (cached) context.
+    Returns the returned object of the wrapped function that lives in the global (cached) context.
 
     Usable as:
       @bean
@@ -116,3 +115,10 @@ def bean(
     if __func is not None:
         return decorator(__func)
     return decorator
+
+def clear():
+    """
+    Clears all context so next factory methods recreate their object.
+    """
+
+    st.cache_resource.clear()
