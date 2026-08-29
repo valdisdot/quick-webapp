@@ -210,6 +210,14 @@ def streamlit_page(
     return pg
 
 
+def streamlit_main_sctipt_path() -> Path:
+    """
+    Returns Streamlit main script path that was used with streamlit run command.
+    """
+
+    return Path(st.config._main_script_path).resolve()
+
+
 class WebApplication:
     """
     Web application wrapper that loads shared CSS/JS and provides a
