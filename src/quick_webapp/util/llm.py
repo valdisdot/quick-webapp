@@ -315,13 +315,29 @@ class LLMClient(ABC):
         If no chat_id is provided, interrupts all current response generations.
         """
         
-        if (chat_id):
+        if chat_id:
             if chat_id in self.__chats: self.__chats[chat_id].interrupted = True
         else:
             for chat in self.__chats.values():
                 chat.interrupted = True
             for chat in self.__chatless:
                 chat.interrupted = True
+
+    def delete_chat(self, chat_id: int = None):
+        """
+        Deletes a chat by chat id if any.
+        If no chat_id is provided, deletes all chatless chats.
+        """
+
+        if chat_id:
+            if chat_id in self.__chats: 
+                self.__chats[chat_id].interrupted = True
+                del self.__chats[chat_id]
+        else:
+            while self.__chatless:
+                current_chat = self.__chatless.pop()
+                current_chat.interrupted = True
+
 
     @abstractmethod
     def support_images(self) -> bool:
