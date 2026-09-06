@@ -73,6 +73,13 @@ class Message:
         """
 
         return iter(self.__content)
+
+    def first_content(self) -> Content | None:
+        """
+        Returns the first content element of the message.
+        """
+
+        return self.__content[0]
     
     @property
     def reasoning_content(self) -> str | None:
@@ -322,6 +329,13 @@ class LLMClient(ABC):
                 chat.interrupted = True
             for chat in self.__chatless:
                 chat.interrupted = True
+
+    def get_messages(self, chat_id: int) -> Iterator[Message]:
+        """
+        Returns an Iterator of Messages object
+        """
+
+        return self.__chats.get(chat_id).messages
 
     def delete_chat(self, chat_id: int = None):
         """
