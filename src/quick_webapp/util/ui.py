@@ -5,6 +5,7 @@ from uuid import uuid4
 from pandas import DataFrame
 import streamlit as st
 from quick_webapp.util.data.data_view import DataView
+from quick_webapp.util.commons import extract_exception_messages
 
 
 def execute_javascript(script: str):
@@ -273,26 +274,4 @@ def render_exception_messages(e: BaseException, starter_message: str | None = No
     Renders exception message and its caused exception messages in Streamlit.error(...)
     """
 
-    messages = []
-    if starter_message:
-        messages.append(starter_message)
-    seen = set()
-    current_exception = e
-
-    while current_exception is not None and id(current_exception) not in seen:
-        seen.add(id(current_exception))
-        message = str(current_exception).strip()
-        if message:
-            messages.append(message)
-
-        if current_exception.__cause__ is not None:
-            current_exception = current_exception.__cause__
-            continue
-
-        if current_exception.__context__ is not None and not current_exception.__suppress_context__:
-            current_exception = current_exception.__context__
-            continue
-
-        break
-
-    st.error("\n".join(messages))
+    st.error("\n\n".join(extract_exception_messages(e, starter_message)))
