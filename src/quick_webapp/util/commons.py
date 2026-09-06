@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Iterable, deque
 from collections.abc import Callable
 import inspect
 import os
@@ -50,3 +50,34 @@ def get_environment(path: str | None = ".env", push_to_env: bool | None = None):
             os.environ[key] = value
     
     return env
+
+def __children(exc: BaseException) -> Iterable[BaseException]:
+    exs = getattr(exc, "exceptions", None)
+    if exs:
+        yield from exs
+
+    if exc.__cause__ is not None:
+        yield exc.__cause__
+
+    if exc.__context__ is not None and not exc.__suppress_context__:
+        yield exc.__context__
+
+def extract_exception_messages(exception: BaseException, starter_message: str | None = None) -> list[str]:
+    messages: list[str] = []
+    if starter_message:
+        messages.append(starter_message)
+
+    seen: set[int] = set()
+    queue = deque([exception])
+
+    while queue:
+        current_exception = queue.popleft()
+        if id(current_exception) not in seen:
+            seen.add(id(current_exception))
+            msg = str(current_exception).strip()
+            if msg:
+                messages.append(msg)
+
+            queue.extend(__children(current_exception))
+
+    return messages
