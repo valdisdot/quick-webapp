@@ -1,4 +1,5 @@
-from typing import Any, Iterable, deque
+from typing import Any, Iterable
+from collections import deque
 from collections.abc import Callable
 import inspect
 import os
