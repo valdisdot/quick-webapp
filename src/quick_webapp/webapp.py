@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any, Literal
 from collections.abc import Callable
 import os
@@ -209,7 +211,6 @@ def streamlit_page(
 
     return pg
 
-
 def streamlit_main_sctipt_path() -> Path:
     """
     Returns Streamlit main script path that was used with streamlit run command.
@@ -287,13 +288,26 @@ class WebApplication:
         )
         self.__header_buttons_gap = header_buttons_gap if header_buttons_gap else 10
 
-    @staticmethod
-    def page_session_object() -> dict[Any, Any]:
+    def as_context(
+        self,
+        page_title: str | None = None,
+        header_menu: dict[str, str | Path | dict[str, str | Path]] = None,
+        styles: list[str] = None,
+        page_title_render: Callable[[str], Any] = None,
+        java_scripts: list[str] = None
+    ) -> WebApplicationContext:
         """
-        Returns a dictionary for current page related session (by its URL).
+        Encapsulates WebApplication.at_page_beginning and WebApplication.at_page_end into the context manager, to use 'with web_app_obj.context(...): pass
         """
 
-        return ensure_session_object(st.context.url)
+        return WebApplicationContext(
+            self,
+            page_title,
+            header_menu,
+            styles,
+            page_title_render,
+            java_scripts
+        )
     
     def __build_header(self, header_menu: dict[str, str | Path | Callable | dict[str, str | Path | Callable]] = None) -> list[dict[str, Any]]:
         """
@@ -356,7 +370,7 @@ class WebApplication:
         return res
     
     def __init_header(self, header_menu: dict[str, str | Path | Callable | dict[str, str | Path | Callable]] = None):
-        session_storage: dict = self.page_session_object()
+        session_storage: dict = ensure_session_object(st.context.url)
                 
         if "header" not in session_storage or session_storage.get("last_header") != header_menu:            
             session_storage["last_header"] = header_menu
@@ -496,3 +510,31 @@ class WebApplication:
         if java_scripts and isinstance(java_scripts, list):
             for js in java_scripts:
                 execute_javascript(js)
+
+class WebApplicationContext:
+    """
+    Helper class that encapsulates WebApplication.at_page_beginning and WebApplication.at_page_end into the context manager, to use 'with web_app_obj.context(...): pass'
+    """
+
+    def __init__(
+            self, 
+            webapp: WebApplication,
+            page_title: str | None = None,
+            header_menu: dict[str, str | Path | dict[str, str | Path]] = None,
+            styles: list[str] = None,
+            page_title_render: Callable[[str], Any] = None,
+            java_scripts: list[str] = None
+        ):
+        self.__webapp = webapp
+        self.__page_title = page_title
+        self.__header_menu = header_menu
+        self.__styles = styles
+        self.__page_title_render = page_title_render
+        self.__java_scripts = java_scripts
+
+    def __enter__(self):
+        self.__webapp.at_page_beginning(self.__page_title, self.__header_menu, self.__styles, self.__page_title_render)
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.__webapp.at_page_end( self.__java_scripts)
