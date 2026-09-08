@@ -192,9 +192,9 @@ def render(obj: Any, label: str | None = None):
             st.write(span_label)
             st.write(repr(obj))
 
-
 def action_table(
         data: Iterable[Any], 
+        no_data_message: str,
         data_mappers: dict[str, Callable[[Any], None]], 
         action_mappers: dict[str, Callable[[Any], None]], 
         actions_col_label: str = None, 
@@ -202,72 +202,91 @@ def action_table(
         table_head_line_color: str = "silver",
         container_border: bool = True, 
         container_width: str | int = "stretch", 
-        data_to_action_column_ratios: int | list[int] = 3
+        column_ratio_spec: list[int] = None,
+        column_gap: str = "xxsmall",
+        column_vertical_alignment: str = "center"
 ):
     """
     Renders data as an action table. On the left it renders data element as a components, based on data_mappers, on the right - action buttons using action_mappers.
 
-    data - the data to render
-    data_mappers - a dictionary where key is used as a column name, value as a callable that will be invoked for the column on each data element.
-    action_mappers - a dcitionary where key is used as a button label, value as a callback on the button clicked.
-    actions_col_label - a column name (for the first column) for action buttons.
-    action_button_type - Streamlit button type for action buttons: 'primary', 'secondary', 'tertiary'
-    table_head_line_color - line color between table head and rendered data (no separator if falsy)
-    container_border - flag to wrap table container in the border
-    container_width - width of the table container, Streamlit constant ('stretch', 'content') or integer
-    data_to_action_column_ratios - a column ration configuration, for a number it defines how much data column is bigger that action column (X to 1), for a list the list is used for st.culumns directly.
+    data: the data to render
+
+    no_data_message = a line to be displayed if data is falsy
+
+    data_mappers: a dictionary where key is used as a column name, value as a callable that accepts the data element and renders the data (must be compatible to write inside the streamlit.column element)
+
+    action_mappers: a dicitionary where key is used as a button label, value as a callback on the button clicked (a function that simply accept the data element).
+
+    actions_col_label: a column name (for the first column) for action buttons.
+
+    action_button_type: Streamlit button type for action buttons ('primary', 'secondary', 'tertiary')
+
+    table_head_line_color: line color between table head and rendered data (no separator if falsy)
+
+    container_border: flag to wrap table container in the border
+    
+    container_width: width of the table container, Streamlit constant ('stretch', 'content') or an integer
+
+    column_ratio_spec: a column ratio specs (in case of falsy value the columns will be distributed evenly, in case the length is less than sum of lenghts of data_mappers and action_mappers will be added 1 to fulfill the spec)
+
+    column_gap: a parament for streamlit.column for gap ('xxsmall', 'xsmall', 'small', 'medium', 'large', 'xlarge', 'xxlarge')
+
+    column_vertical_alignment: a parament for streamlit.column for vertical_alignment ('top', 'center', or 'bottom')
+
     """
 
     container = st.container(border = container_border, width=container_width, gap="xxsmall")
 
-    if (isinstance(data_to_action_column_ratios, Iterable)):
-        dif = len(data_mappers) + len(action_mappers) - len(data_to_action_column_ratios)
-        if dif > 0:
-            data_to_action_column_ratios.append(1)
-        
-    else:  
-        data_to_action_column_ratios = (
-            [data_to_action_column_ratios] * len(data_mappers) + [1] * len(action_mappers)
-        )
+    if not column_ratio_spec or not isinstance(column_ratio_spec, Sequence):
+        column_ratio_spec = [1] * (len(data_mappers) + len(action_mappers))
+
+    else:
+        shortfall = len(data_mappers) + len(action_mappers) - len(column_ratio_spec)
+        while shortfall > 0:
+            column_ratio_spec.append(1)
+            shortfall -= 1
 
     with container:
         header = st.columns(
-            data_to_action_column_ratios,
-            gap="xxsmall",
-            vertical_alignment="center"
+            column_ratio_spec,
+            gap=column_gap,
+            vertical_alignment=column_vertical_alignment,
         )
 
         if table_head_line_color:
             st.html(f'<hr style="background-color: {table_head_line_color}; border: none; height: 1px">')
 
-    for col, title in zip(header, data_mappers.keys()):
-        with col:
+    for column, title in zip(header, data_mappers.keys()):
+        with column:
             st.markdown(f"**{title}**")
 
     if actions_col_label and action_mappers:
         header[len(data_mappers)].write(f"**{actions_col_label}**")
 
-    for row_i, obj in enumerate(data):
-        with container:
-            row = st.columns(
-                data_to_action_column_ratios,
-                gap="xxsmall",
-                vertical_alignment="center",
-            )
+    if data:
+        for row_index, data_element in enumerate(data):
+            with container:
+                row_columns = st.columns(
+                    column_ratio_spec,
+                    gap=column_gap,
+                    vertical_alignment=column_vertical_alignment
+                )
 
-        for col, data_render in zip(row, data_mappers.values()):
-            with col:
-                data_render(obj)
+            for column, data_render in zip(row_columns, data_mappers.values()):
+                with column:
+                    data_render(data_element)
 
-        for action_i, (action_label, action) in enumerate(action_mappers.items()):
-            with row[len(data_mappers) + action_i]:
-                if st.button(
-                    action_label,
-                    key=f"{row_i}-{action_label}",
-                    width="stretch",
-                    type=action_button_type
-                ):
-                    action(obj)
+            for action_index, (action_label, action) in enumerate(action_mappers.items()):
+                with row_columns[len(data_mappers) + action_index]:
+                    if st.button(
+                        action_label,
+                        key=f"{row_index}-{action_label}",
+                        width="stretch",
+                        type=action_button_type
+                    ):
+                        action(data_element)
+    elif no_data_message:
+        st.write(no_data_message)
 
 def render_exception_messages(e: BaseException, starter_message: str | None = None):
     """
