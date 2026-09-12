@@ -7,6 +7,7 @@ import re
 from uuid import uuid4
 from pathlib import Path
 import streamlit as st
+from streamlit import config as st_config
 from streamlit.navigation.page import StreamlitPage
 from quick_webapp import ensure_session_object
 from quick_webapp.util.ui import apply_css, execute_javascript
@@ -226,7 +227,72 @@ class WebApplication:
     """
 
     @classmethod
-    def __load_webapp__(cls, dir: str, webapp_object: dict = None):
+    def __build_base_css(cls) -> str:
+        theme_base = st_config.get_option("theme.base")
+        theme_sidebar_bg = st_config.get_option("theme.sidebar.backgroundColor")
+        theme_secondary_bg = st_config.get_option("theme.secondaryBackgroundColor")
+        sidebar_bg = theme_sidebar_bg if theme_sidebar_bg else (theme_secondary_bg if theme_secondary_bg else ("#f0f2f6" if theme_base == "light" else "#262730"))
+        theme_sidebar_border_color = st_config.get_option("theme.sidebar.borderColor")
+        theme_border_color = st_config.get_option("theme.borderColor")
+        sidebar_border_on = int(st_config.get_option("theme.showSidebarBorder"))
+        sidebar_border_bg = theme_sidebar_border_color if theme_sidebar_border_color else (theme_border_color if theme_border_color else ("#d6d6d6" if theme_base == "light" else "#4e4e4e"))
+
+        return f"""
+                *, *::before, *::after {{
+                    box-sizing: border-box;
+                }}
+
+                html {{
+                    -webkit-text-size-adjust: 100%;
+                }}
+
+                body {{
+                    margin: 0;
+                    line-height: 1.5;
+                }}
+
+                div[data-testid="stComponent"] {{
+                    margin: 0 !important;
+                    padding: 0 !important;
+                }}
+
+                iframe[title="st.iframe"] {{
+                    display: none !important;
+                }}
+                        
+                .block-container {{
+                    padding-top: 4rem;
+                    padding-left: 1.5rem;
+                }}
+
+                input, button, textarea, select {{
+                    font: inherit;
+                }}
+
+                img, svg {{
+                    display: block;
+                    max-width: 100%;
+                }}
+
+                .stApp {{
+                    zoom: 1;
+                }}
+
+                header.stAppHeader {{
+                    background: {sidebar_bg};
+                    border-bottom: {sidebar_border_on}px solid {sidebar_border_bg};
+                    z-index: 99999;
+                    pointer-events: none;
+                }}
+                        
+                button[kind="headerNoPadding"] {{
+                    width: 50px;
+                    height: 40px;
+                }}
+            """
+
+    @classmethod
+    def __load_webapp(cls, dir: str, webapp_object: dict = None):
         """
         Recursively load CSS, JavaScript and the app icon from ``dir``.
 
@@ -234,7 +300,7 @@ class WebApplication:
         corresponding lists; a file named ``icon.*`` is used as the app icon.
         """
 
-        webapp = {"css": [], "js": []} if webapp_object is None else webapp_object
+        webapp = {"css": [cls.__build_base_css()], "js": []} if webapp_object is None else webapp_object
 
         if os.path.exists(dir) and os.path.isdir(dir):
             for filename in sorted(
@@ -256,7 +322,7 @@ class WebApplication:
                         webapp["icon"] = file_path
 
                 elif os.path.isdir(file_path):
-                    cls.__load_webapp__(file_path, webapp)
+                    cls.__load_webapp(file_path, webapp)
 
         return webapp
 
@@ -278,7 +344,7 @@ class WebApplication:
         Key of the header dictionary is interpreted as a label in UI, value in case of Path type will be used to switch into it as a Streamlit page, in case of string it will be treated as a command with handler the header_menu_command_handlers. In case of the type of dict (submenu) will be parsed as the same as header_menu except the dictionary, otherwise submenues inside submenues is not supported.
         """
 
-        self.__webapp = self.__load_webapp__(webapp_dir)
+        self.__webapp = self.__load_webapp(webapp_dir)
         self.__header_menu = header_menu if header_menu else {}
         self.__header_menu_command_handlers = (
             header_menu_command_handlers if header_menu_command_handlers else {}
@@ -412,7 +478,7 @@ class WebApplication:
         page_title: str | None = None,
         header_menu: dict[str, str | Path | dict[str, str | Path]] = None,
         styles: list[str] = None,
-        page_title_render: Callable[[str], Any] = None
+        page_title_render: Callable[[str], Any] = lambda title: st.subheader(title)
     ):
         """
         Render header, base styles and the header menu at the page start.
@@ -422,65 +488,6 @@ class WebApplication:
         Applies built‑in CSS reset, webapp‑level styles and optional extra
         styles, then renders header buttons for the configured header menu items.
         """
-
-        apply_css("""
-                *, *::before, *::after {
-                    box-sizing: border-box;
-                }
-
-                html {
-                    font-size: 16px;
-                    -webkit-text-size-adjust: 100%;
-                }
-
-                body {
-                    margin: 0;
-                    line-height: 1.5;
-                }
-
-                div[data-testid="stComponent"] {
-                    margin: 0 !important;
-                    padding: 0 !important;
-                }
-
-                iframe[title="st.iframe"] {
-                    display: none !important;
-                }
-                        
-                .block-container {
-                    padding-top: 4rem;
-                    padding-left: 1.5rem;
-                }
-
-                input, button, textarea, select {
-                    font: inherit;
-                }
-
-                img, svg {
-                    display: block;
-                    max-width: 100%;
-                }
-
-                .stApp {
-                    zoom: 1;
-                }
-
-                div[data-testid="stSidebarContent"] {
-                    border-right: 1px solid #CBD5E1;
-                }
-
-                header.stAppHeader {
-                    background: #e9edf2;
-                    border-bottom: 1px solid #CBD5E1;
-                    z-index: 99999;
-                    pointer-events: none;
-                }
-                        
-                button[kind="headerNoPadding"] {
-                    width: 50px;
-                    height: 40px;
-                }
-            """)
 
         st.set_page_config(page_title=page_title, page_icon=self.__webapp.get("icon"))
 
