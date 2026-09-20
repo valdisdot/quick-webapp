@@ -2,6 +2,8 @@ from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 import time
 from pandas import DataFrame
+import difflib
+import html
 import streamlit as st
 from quick_webapp.util.data.data_view import DataView
 from quick_webapp.util.commons import extract_exception_messages
@@ -77,3 +79,103 @@ def render_exception_messages(e: BaseException, starter_message: str | None = No
     """
 
     st.error("\n\n".join(extract_exception_messages(e, starter_message)))
+
+def render_text_diff(
+    old_text: str,
+    new_text: str,
+) -> None:
+    """
+    Renders git-like diff view.
+    """
+
+    old_lines = old_text.splitlines()
+    new_lines = new_text.splitlines()
+
+    diff = difflib.ndiff(old_lines, new_lines)
+
+    rows = []
+
+    for line in diff:
+        if line.startswith("? "):
+            continue
+
+        prefix = line[:2]
+        content = html.escape(line[2:])
+
+        if prefix == "  ":
+            rows.append(
+                f'<div class="diff-line context">'
+                f'<span class="sign"> </span>'
+                f'<span>{content}</span>'
+                f'</div>'
+            )
+
+        elif prefix == "- ":
+            rows.append(
+                f'<div class="diff-line removed">'
+                f'<span class="sign">−</span>'
+                f'<span>{content}</span>'
+                f'</div>'
+            )
+
+        elif prefix == "+ ":
+            rows.append(
+                f'<div class="diff-line added">'
+                f'<span class="sign">+</span>'
+                f'<span>{content}</span>'
+                f'</div>'
+            )
+
+    diff_html = "\n".join(rows)
+
+    st.html(
+        f"""
+        <style>
+            .diff-container {{
+                overflow: auto;
+            }}
+
+            .diff-line {{
+                display: flex;
+                min-width: max-content;
+                padding: 0 8px;
+                white-space: pre;
+            }}
+
+            .diff-line .sign {{
+                display: inline-block;
+                width: 20px;
+                flex-shrink: 0;
+                user-select: none;
+            }}
+
+            .diff-line.added {{
+                background: rgba(46, 160, 67, 0.20);
+            }}
+
+            .diff-line.removed {{
+                background: rgba(248, 81, 73, 0.20);
+            }}
+
+            .diff-line.added .sign {{
+                color: #2da44e;
+                font-weight: bold;
+            }}
+
+            .diff-line.removed .sign {{
+                color: #f85149;
+                font-weight: bold;
+            }}
+
+            .diff-line.context {{
+                opacity: 0.8;
+            }}
+        </style>
+
+        <div class="diff-container">
+            {diff_html}
+        </div>
+        """,
+        unsafe_allow_javascript=True
+    )
+
