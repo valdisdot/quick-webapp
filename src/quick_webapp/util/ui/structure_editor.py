@@ -964,17 +964,19 @@ def structure_editor(
             "node": Node.create(data)
         }
 
-    root: Node = context["node"]
+    editor_context = context[key]
+
+    root: Node = editor_context["node"]
 
     with st.container():
         __render_node(
             key,
             root,
             None,
-            context["ui"]["spec_for_objects"],
-            context["ui"]["spec_for_arrays"],
-            context["ui"]["spec_for_scalar_of_dict"],
-            context["ui"]["spec_for_scalar_of_arrays"],
+            editor_context["ui"]["spec_for_objects"],
+            editor_context["ui"]["spec_for_arrays"],
+            editor_context["ui"]["spec_for_scalar_of_dict"],
+            editor_context["ui"]["spec_for_scalar_of_arrays"],
             expander_help,
             include_help,
             field_empty_error_text,
@@ -988,7 +990,7 @@ def structure_editor(
             add_array_menu_text, 
             clone_menu_text,
             delete_menu_text,
-            context
+            editor_context
         )
 
     return root
