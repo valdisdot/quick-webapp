@@ -915,30 +915,13 @@ def __render_node(
             delete_menu_text
         )
 
-@session_bean
-def __structure_editor_context() -> dict[str, Any]:
-    button_spec = 0.6
-    return {
-        "ui": {
-            "spec_for_scalar_of_dict": [1, 4, button_spec],
-            "spec_for_scalar_of_arrays": [0.5, 4.5, button_spec],
-            "spec_for_objects": [5, button_spec],
-            "spec_for_arrays": [5, button_spec]
-        }
-    }
-
 @st.fragment
 def structure_editor(
     data: dict | list,
     key: str,
-    object_consumer: Callable[[dict | list | Any], None],
-    rerun_on_save: bool | None = None,
-    cancel_callback: Callable[[], None] | None = None,
-    rerun_on_cancel: bool | None = None,
+    context: dict[str, Any],
     expander_help: str | None = None,
     include_help: str | None = None,
-    save_button_label: str = "Save",
-    cancel_button_label: str = "Cancel",
     field_empty_error_text: str = "Field name is empty",
     field_exists_error_text: str = "Field name already exists",
     add_string_menu_text: str = "Add a string",
@@ -951,33 +934,39 @@ def structure_editor(
     clone_menu_text: str = "Clone",
     delete_menu_text: str = "Delete the field"
     
-) -> dict | list:
+) -> Node:
     """
     Render an editable tree for a Python dict/list.
+
+    Returns the root Node from the data with current editing. User can fetch data back using Node.data() method.
 
     data: root dict or list.
 
     key: unique identifier for this editor instance.
 
-    object_consumer: a callback that accepts a result structure on save
-
-    rerun_on_save: if st.rerun() must be called on save
+    context: a dict for a data, so user can delete context[key] if needed to clear the structure_editor contextual data
     """
 
-    structure_key = f"_structure_editor_state_{key}"
-    context = __structure_editor_context()
-
-    if structure_key not in context:
+    if key not in context:
         if not isinstance(data, (dict, list)):
             raise TypeError(
                 "structure_editor() requires dict or list as the root."
             )
+        
+        button_spec = 0.6
+        context[key] = {
+            "ui": {
+                "spec_for_scalar_of_dict": [1, 4, button_spec],
+                "spec_for_scalar_of_arrays": [0.5, 4.5, button_spec],
+                "spec_for_objects": [5, button_spec],
+                "spec_for_arrays": [5, button_spec]
+            },
+            "node": Node.create(data)
+        }
 
-        context[structure_key] = Node.create(data)
+    root: Node = context["node"]
 
     with st.container():
-        root: Node = context[structure_key]
-
         __render_node(
             key,
             root,
@@ -1002,23 +991,5 @@ def structure_editor(
             context
         )
 
-        left, spacer, right = st.columns([1, 8, 1], wrap=False)
-
-        with left:
-            if st.button(save_button_label, key=f"{key}_save_button", type="primary", width="stretch"):
-                object_consumer(root.data())
-                del context[structure_key]
-
-                if rerun_on_save:
-                    st.rerun()
-
-        with right:
-            if st.button(cancel_button_label, key=f"{key}_cancel_button", type="secondary", width="stretch"):
-                del context[structure_key]
-
-                if cancel_callback and isinstance(cancel_callback, Callable):
-                    cancel_callback()
-
-                if rerun_on_cancel:
-                    st.rerun()
+    return root
 
