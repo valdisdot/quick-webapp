@@ -287,7 +287,7 @@ def __render_scalar(
         node.value = st.selectbox(
             "Value",
             options=__bool_list(),
-            index=0,
+            index=int(value),
             key=__make_widget_key(editor_key, node, "bool"),
             label_visibility="collapsed",
             width=70
