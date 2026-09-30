@@ -1,9 +1,8 @@
 from __future__ import annotations
 from typing import Any
-from collections.abc import Callable
 from uuid import uuid4
 import streamlit as st
-from quick_webapp import session_bean
+from quick_webapp import bean
 
 class Node:
     """
@@ -265,6 +264,10 @@ def __make_widget_key(
 ) -> str:
     return f"{editor_key}_{node.id}_{suffix}"
 
+@bean(key="__bool_list_structure_editor")
+def __bool_list() -> list[str]:
+    return ["false", "true"]
+
 def __render_scalar(
     editor_key: str,
     node: Node,
@@ -281,13 +284,14 @@ def __render_scalar(
         )
 
     elif isinstance(value, bool):
-        node.value = st.checkbox(
+        node.value = st.selectbox(
             "Value",
-            value=value,
+            options=__bool_list(),
+            index=0,
             key=__make_widget_key(editor_key, node, "bool"),
             label_visibility="collapsed",
-            width="content"
-        )
+            width=70
+        ) == "true"
 
     elif isinstance(value, int):
         node.value = st.number_input(
@@ -945,6 +949,8 @@ def structure_editor(
     key: unique identifier for this editor instance.
 
     context: a dict for a data, so user can delete context[key] if needed to clear the structure_editor contextual data
+
+    returns: a Node object with current data state that was created at context instantiation. This object also placed in context[key]["node"]
     """
 
     if key not in context:
