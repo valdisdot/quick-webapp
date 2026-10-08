@@ -30,7 +30,7 @@ class PageContext:
         if contexts and isinstance(contexts, dict):
             for key, item in contexts.items():
                 if item is not None and isinstance(item, dict):
-                    self.__contexts[key] = {item}
+                    self.__contexts[key] = dict(item)
 
     @property
     def key(self) -> str:
