@@ -63,26 +63,40 @@ class PageContext:
 
         self.__notifications.append((message, message_icon, pre_notification_action, post_notification_action))
 
-    def fire_notifications(self):
+    def fire_notifications(self, rerun_scope: str | None = None):
         """
         Fires all notifications that was put with put_notification() 
+
+        If rerun_scope is provided then st.rerun(rerun_scope) performs after all notifications fired.
+
+        Does nothing if there are no notifications.
         """
+        if self.__notifications:
+            while self.__notifications:
+                message, message_icon, pre_notification_action, post_notification_action = self.__notifications.pop(0)
 
-        while self.__notifications:
-            message, message_icon, pre_notification_action, post_notification_action = self.__notifications.pop(0)
+                if pre_notification_action and isinstance(pre_notification_action, Callable):
+                    pre_notification_action(self)
 
-            if pre_notification_action and isinstance(pre_notification_action, Callable):
-                pre_notification_action(self)
+                st.toast(message, icon=message_icon, duration=self.__notification_duration_seconds)
 
-            st.toast(message, icon=message_icon, duration=self.__notification_duration_seconds)
+                if post_notification_action and isinstance(post_notification_action, Callable):
+                    post_notification_action(self)
 
-            if post_notification_action and isinstance(post_notification_action, Callable):
-                post_notification_action(self)
+            if rerun_scope:
+                st.rerun("fragment" if rerun_scope == "fragment" else "app")
 
-    def apply(self, action: Callable[[PageContext], Any]):
+    def apply(self, action: Callable[[PageContext], Any], rerun_scope: str | None = None):
         """
-        Apply an action to this PageContext (reversed setter)
+        Apply an action to this PageContext (reverse)
+
+        If rerun_scope is provided then st.rerun(rerun_scope) performs.
+
+        Does nothing if there is no action or it is not a Callable.
         """
 
         if action and isinstance(action, Callable):
             action(self)
+
+            if rerun_scope:
+                st.rerun("fragment" if rerun_scope == "fragment" else "app")
