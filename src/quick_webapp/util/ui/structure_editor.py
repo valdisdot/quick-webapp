@@ -449,12 +449,16 @@ def __render_scalar_row(
 def __render_object(
     editor_key: str,
     node: Node,
+    expand: bool,
+    collapse: bool,
     node_key: str | int | None,
     spec_for_objects: list[int | float],
     spec_for_arrays: list[int | float],
     spec_for_scalar_of_dict: list[int | float],
     spec_for_scalar_of_arrays: list[int | float],
     expander_help: str,
+    expand_all_help: str,
+    collapse_all_help: str,
     include_help: str,
     field_empty_error_text: str,
     field_exists_error_text: str,
@@ -474,7 +478,12 @@ def __render_object(
         if not node.is_root:
             with st.container(horizontal=True, vertical_alignment="center"):
                 expand_key = __make_widget_key(editor_key, node, "expander")
-                context[expand_key] = st.toggle(" ", bool(context.get(expand_key)), help=expander_help if expander_help else None, key=expand_key, label_visibility="visible" if expander_help else "collapsed")
+                if expand:
+                    st.session_state[expand_key] = True
+                if collapse:
+                    st.session_state[expand_key] = False
+
+                context[expand_key] = st.toggle(" ", help=expander_help if expander_help else None, key=expand_key, label_visibility="visible" if expander_help else "collapsed")
 
                 field_name = "$" if node.is_root else str(node_key)
 
@@ -499,12 +508,16 @@ def __render_object(
                 node.included = st.checkbox(" ", node.included, help=include_help if include_help else None, key=__make_widget_key(editor_key, node, "included"), label_visibility="visible" if include_help else "collapsed")
 
         if node.is_root or context.get(expand_key):
-            pushed_item_type = st.menu_button(
-                "⯆", 
-                (add_string_menu_text, add_int_menu_text, add_float_menu_text, add_bool_menu_text, add_null_menu_text, add_object_menu_text, add_array_menu_text), 
-                key=__make_widget_key(editor_key, node, "push_field"),
-                width="stretch"
-            )
+            with st.container(horizontal=True, gap="xxsmall"):
+                pushed_item_type = st.menu_button(
+                    "⯆", 
+                    (add_string_menu_text, add_int_menu_text, add_float_menu_text, add_bool_menu_text, add_null_menu_text, add_object_menu_text, add_array_menu_text), 
+                    key=__make_widget_key(editor_key, node, "push_field"),
+                    width="stretch"
+                )
+
+                expand = st.button("< >", help=expand_all_help, key=__make_widget_key(editor_key, node, "expand_all")) or expand
+                collapse = st.button("> <", help=collapse_all_help, key=__make_widget_key(editor_key, node, "collapse_all")) or collapse
 
             if pushed_item_type:
                 if pushed_item_type == add_string_menu_text:
@@ -537,12 +550,16 @@ def __render_object(
                             __render_node(
                                 editor_key,
                                 child,
+                                expand,
+                                collapse,
                                 child_field_name,
                                 spec_for_objects,
                                 spec_for_arrays,
                                 spec_for_scalar_of_dict,
                                 spec_for_scalar_of_arrays,
                                 expander_help,
+                                expand_all_help,
+                                collapse_all_help,
                                 include_help,
                                 field_empty_error_text,
                                 field_exists_error_text,
@@ -637,12 +654,16 @@ def __render_object(
 def __render_array(
     editor_key: str,
     node: Node,
+    expand: bool,
+    collapse: bool,
     node_key: str | int | None,
     spec_for_objects: list[int | float],
     spec_for_arrays: list[int | float],
     spec_for_scalar_of_dict: list[int | float],
     spec_for_scalar_of_arrays: list[int | float],
     expander_help: str,
+    expand_all_help: str,
+    collapse_all_help: str,
     include_help: str,
     field_empty_error_text: str,
     field_exists_error_text: str,
@@ -662,8 +683,12 @@ def __render_array(
         if not node.is_root:
             with st.container(horizontal=True, vertical_alignment="center"):
                 expand_key = __make_widget_key(editor_key, node, "expander")
+                if expand:
+                    st.session_state[expand_key] = True
+                if collapse:
+                    st.session_state[expand_key] = False
                 
-                context[expand_key] = st.toggle(" ", bool(context.get(expand_key)), help=expander_help if expander_help else None, key=expand_key, label_visibility="visible" if expander_help else "collapsed")
+                context[expand_key] = st.toggle(" ", help=expander_help if expander_help else None, key=expand_key, label_visibility="visible" if expander_help else "collapsed")
                 st.caption(f"[{len(node.value)}]", width="content")
 
                 field_name = "$" if node.is_root else str(node_key)
@@ -689,12 +714,16 @@ def __render_array(
                 node.included = st.checkbox(" ", node.included, help=include_help if include_help else None, key=__make_widget_key(editor_key, node, "included"), label_visibility="visible" if include_help else "collapsed")
 
         if node.is_root or context.get(expand_key):
-            pushed_item_type = st.menu_button(
-                "⯆", 
-                (add_string_menu_text, add_int_menu_text, add_float_menu_text, add_bool_menu_text, add_null_menu_text, add_object_menu_text, add_array_menu_text), 
-                key=__make_widget_key(editor_key, node, "push_element"),
-                width="stretch"
-            )
+            with st.container(horizontal=True, gap="xxsmall"):
+                pushed_item_type = st.menu_button(
+                    "⯆", 
+                    (add_string_menu_text, add_int_menu_text, add_float_menu_text, add_bool_menu_text, add_null_menu_text, add_object_menu_text, add_array_menu_text), 
+                    key=__make_widget_key(editor_key, node, "push_element"),
+                    width="stretch"
+                )
+
+                expand = st.button("< >", help=expand_all_help, key=__make_widget_key(editor_key, node, "expand_all")) or expand
+                collapse = st.button("> <", help=collapse_all_help, key=__make_widget_key(editor_key, node, "collapse_all")) or collapse
 
             if pushed_item_type:
                 if pushed_item_type == add_string_menu_text:
@@ -727,12 +756,16 @@ def __render_array(
                             __render_node(
                                 editor_key,
                                 child,
+                                expand,
+                                collapse,
                                 child_index,
                                 spec_for_objects,
                                 spec_for_arrays,
                                 spec_for_scalar_of_dict,
                                 spec_for_scalar_of_arrays,
                                 expander_help,
+                                expand_all_help,
+                                collapse_all_help,
                                 include_help,
                                 field_empty_error_text,
                                 field_exists_error_text,
@@ -827,12 +860,16 @@ def __render_array(
 def __render_node(
     editor_key: str,
     node: Node,
+    expand: bool,
+    collapse: bool,
     node_key: str | int | None,
     spec_for_objects: list[int | float],
     spec_for_arrays: list[int | float],
     spec_for_scalar_of_dict: list[int | float],
     spec_for_scalar_of_arrays: list[int | float],
     expander_help: str,
+    expand_all_help: str,
+    collapse_all_help: str,
     include_help: str,
     field_empty_error_text: str,
     field_exists_error_text: str,
@@ -852,12 +889,16 @@ def __render_node(
         __render_object(
             editor_key,
             node,
+            expand,
+            collapse,
             node_key,
             spec_for_objects,
             spec_for_arrays,
             spec_for_scalar_of_dict,
             spec_for_scalar_of_arrays,
             expander_help,
+            expand_all_help,
+            collapse_all_help,
             include_help,
             field_empty_error_text,
             field_exists_error_text,
@@ -877,12 +918,16 @@ def __render_node(
         __render_array(
             editor_key,
             node,
+            expand,
+            collapse,
             node_key,
             spec_for_objects,
             spec_for_arrays,
             spec_for_scalar_of_dict,
             spec_for_scalar_of_arrays,
             expander_help,
+            expand_all_help,
+            collapse_all_help,
             include_help,
             field_empty_error_text,
             field_exists_error_text,
@@ -925,6 +970,8 @@ def structure_editor(
     key: str,
     context: dict[str, Any],
     expander_help: str | None = None,
+    expand_all_help: str | None = None,
+    collapse_all_help: str | None = None,
     include_help: str | None = None,
     field_empty_error_text: str = "Field name is empty",
     field_exists_error_text: str = "Field name already exists",
@@ -971,19 +1018,22 @@ def structure_editor(
         }
 
     editor_context = context[key]
-
     root: Node = editor_context["node"]
 
     with st.container():
         __render_node(
             key,
             root,
+            False,
+            False,
             None,
             editor_context["ui"]["spec_for_objects"],
             editor_context["ui"]["spec_for_arrays"],
             editor_context["ui"]["spec_for_scalar_of_dict"],
             editor_context["ui"]["spec_for_scalar_of_arrays"],
             expander_help,
+            expand_all_help,
+            collapse_all_help,
             include_help,
             field_empty_error_text,
             field_exists_error_text,
