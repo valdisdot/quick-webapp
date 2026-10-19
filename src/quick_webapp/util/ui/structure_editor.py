@@ -475,12 +475,13 @@ def __render_object(
 ) -> None:
 
     with st.container(border=True, vertical_alignment="top", key=__make_widget_key(editor_key, node, "object")):
+        expand_key = __make_widget_key(editor_key, node, "expander")
+
         if not node.is_root:
             with st.container(horizontal=True, vertical_alignment="center"):
-                expand_key = __make_widget_key(editor_key, node, "expander")
                 if expand:
                     st.session_state[expand_key] = True
-                if collapse:
+                elif collapse:
                     st.session_state[expand_key] = False
 
                 context[expand_key] = st.toggle(" ", help=expander_help if expander_help else None, key=expand_key, label_visibility="visible" if expander_help else "collapsed")
@@ -516,8 +517,8 @@ def __render_object(
                     width="stretch"
                 )
 
-                expand = st.button("< >", help=expand_all_help, key=__make_widget_key(editor_key, node, "expand_all")) or expand
-                collapse = st.button("> <", help=collapse_all_help, key=__make_widget_key(editor_key, node, "collapse_all")) or collapse
+                expand = st.button(":material/expand_all:", help=expand_all_help, key=__make_widget_key(editor_key, node, "expand_all")) or expand
+                collapse = st.button(":material/collapse_all:", help=collapse_all_help, key=__make_widget_key(editor_key, node, "collapse_all")) or collapse
 
             if pushed_item_type:
                 if pushed_item_type == add_string_menu_text:
@@ -680,12 +681,14 @@ def __render_array(
 ) -> None:
 
     with st.container(border=True, vertical_alignment="top", key=__make_widget_key(editor_key, node, "array")):
+        expand_key = __make_widget_key(editor_key, node, "expander")
+
         if not node.is_root:
             with st.container(horizontal=True, vertical_alignment="center"):
-                expand_key = __make_widget_key(editor_key, node, "expander")
+
                 if expand:
                     st.session_state[expand_key] = True
-                if collapse:
+                elif collapse:
                     st.session_state[expand_key] = False
                 
                 context[expand_key] = st.toggle(" ", help=expander_help if expander_help else None, key=expand_key, label_visibility="visible" if expander_help else "collapsed")
@@ -722,8 +725,8 @@ def __render_array(
                     width="stretch"
                 )
 
-                expand = st.button("< >", help=expand_all_help, key=__make_widget_key(editor_key, node, "expand_all")) or expand
-                collapse = st.button("> <", help=collapse_all_help, key=__make_widget_key(editor_key, node, "collapse_all")) or collapse
+                expand = st.button(":material/expand_all:", help=expand_all_help, key=__make_widget_key(editor_key, node, "expand_all")) or expand
+                collapse = st.button(":material/collapse_all:", help=collapse_all_help, key=__make_widget_key(editor_key, node, "collapse_all")) or collapse
 
             if pushed_item_type:
                 if pushed_item_type == add_string_menu_text:
@@ -966,7 +969,7 @@ def __render_node(
 
 @st.fragment
 def structure_editor(
-    data: dict | list,
+    data: dict | list | Node,
     key: str,
     context: dict[str, Any],
     expander_help: str | None = None,
@@ -1001,10 +1004,15 @@ def structure_editor(
     """
 
     if key not in context:
-        if not isinstance(data, (dict, list)):
-            raise TypeError(
-                "structure_editor() requires dict or list as the root."
-            )
+        if isinstance(data, (dict, list)):
+            data = Node.create(data)
+
+        elif isinstance(data, Node):
+            if not (data.is_object or data.is_array):
+                raise TypeError("data Node must be an object or an array node as the root")
+
+        else:
+            raise TypeError(f"data must be dict, list or appropriate Node as the root, got {type(data)}")
         
         button_spec = 0.6
         context[key] = {
@@ -1014,7 +1022,7 @@ def structure_editor(
                 "spec_for_objects": [5, button_spec],
                 "spec_for_arrays": [5, button_spec]
             },
-            "node": Node.create(data)
+            "node": data
         }
 
     editor_context = context[key]
