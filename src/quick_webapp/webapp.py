@@ -320,6 +320,8 @@ class WebApplication:
                             webapp["css"].append("".join(css.readlines()))
                     elif os.path.splitext(filename)[0].lower() == "icon":
                         webapp["icon"] = file_path
+                    elif os.path.splitext(filename)[0].lower() == "logo":
+                        webapp["logo"] = file_path
 
                 elif os.path.isdir(file_path):
                     cls.__load_webapp(file_path, webapp)
@@ -490,6 +492,9 @@ class WebApplication:
         """
 
         st.set_page_config(page_title=page_title, page_icon=self.__webapp.get("icon"))
+
+        if "logo" in self.__webapp:
+            st.logo(self.__webapp["logo"], size="large")
 
         for css in self.__webapp["css"]:
             apply_css(css)
