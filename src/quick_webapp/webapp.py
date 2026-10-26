@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, TypeAlias
 from collections.abc import Callable
 import os
 import re
@@ -14,10 +14,10 @@ from quick_webapp.util.ui import apply_css, execute_javascript
 from quick_webapp.util.reflection import scan_params
 
 
-def menu_page(section_name: str, subsection_name: str):
+def menu_page(*args, path: str | None = None, label: str | None = None, **kwargs):
     """
     Marker method to apply automagic for menu builder.
-    Used to scan .py UI files to build an application menu.
+    Used in scan_menu_pages() that scans .py UI files to build an application menu.
 
     Like:
 
@@ -26,23 +26,71 @@ def menu_page(section_name: str, subsection_name: str):
     - subsection_name
     - and so on
     """
-
     pass
 
 def service_page():
     """
     Marker method to apply automagic for registering Streamlit pages that are NOT to be in navigation sidebar.
     """
-
     pass
+
+
+def __natural_key(name: str) -> tuple:
+    return tuple(
+        (0, int(part)) if part.isdigit() else (1, part.casefold())
+        for part in re.split(r"(\d+)", name)
+    )
+
+
+def __token_key(name: str) -> tuple:
+    match = re.match(r"^(\d+)_(.+)$", name)
+
+    if match:
+        return (0, int(match.group(1)), match.group(2).casefold())
+
+    return (1, name.casefold())
+
+
+def __clean_token(name: str) -> str:
+    match = re.match(r"^\d+_(.+)$", name)
+    return match.group(1) if match else name
+
+MenuTree: TypeAlias = dict[str | None, "MenuTree | st.Page"]
+
+def __sort_tree(
+    tree: MenuTree,
+    *,
+    token_underscore: bool = False,
+) -> MenuTree:
+    key = __token_key if token_underscore else __natural_key
+    result: MenuTree = {}
+
+    if None in tree:
+        result[None] = tree[None]
+
+    names = (name for name in tree if name is not None)
+
+    for name in sorted(names, key=key):
+        value = tree[name]
+        clean_name = __clean_token(name) if token_underscore else name
+
+        if isinstance(value, dict):
+            result[clean_name] = __sort_tree(
+                value,
+                token_underscore=token_underscore,
+            )
+        else:
+            result[clean_name] = value
+
+    return result
 
 def scan_menu_pages(
     ui_package_root: str | Path,
     *ui_package_path: str,
-    mapper: Literal["sort", "token_underscore"] | Callable[[list[str]], list[str]] = "sort"
-) -> dict[str, dict[str, Path]]:
+    mapper: Literal["sort", "token_underscore"] | Callable[[MenuTree], MenuTree] = "sort",
+) -> MenuTree:
     """
-    Scans all .py files for menu_page(...) calls and builds a sidebar tree.natural
+    Scans all .py files for menu_page(...) calls and builds a sidebar tree.
 
     Only the first menu_page() call in each file is used.
 
@@ -50,9 +98,17 @@ def scan_menu_pages(
 
     - sort for a natural string sorting 1-9-a-Z
     - token_underscore for a sort by a order token before underscore ("2_Welcome Page", "1_Home", ... , "14_Admin Page" will be mapped as "Home", "Welcome Page", ..., "Admin Page") 
-    """
+    - in case of Callable uses prividen mapper to sort
 
-    menu_items: dict[str, dict[str, Path]] = {}
+    Mapper options:
+        "sort": natural sorting at every level
+        "token_underscore": sort by numeric prefixes and strip them
+        Callable: custom tree mapper
+
+    A directory that is also a page stores its own Path under the None key.
+    The None key is always sorted first.
+    """
+    menu_items: MenuTree = {}
 
     menu_page_calls = scan_params(
         "menu_page",
@@ -65,86 +121,81 @@ def scan_menu_pages(
             continue
 
         first = calls[0]
-
         args = first["args"]
         kwargs = first["kwargs"]
 
-        section_name = None
-        subsection_name = None
+        path = []
+        label = None
 
-        if len(args) >= 1:
-            section_name = args[0]
+        if args:
+            path.extend(args[:-1])
+            label = args[-1]
 
-        if len(args) >= 2:
-            subsection_name = args[1]
+        if kwargs:
+            if "path" in kwargs:
+                path = kwargs["path"]
 
-        section_name = kwargs.get("section_name", section_name)
-        subsection_name = kwargs.get("subsection_name", subsection_name)
+                if not isinstance(path, str):
+                    raise TypeError(f"menu_page() path must be a string in {file}")
 
-        if not section_name or not subsection_name:
-            raise ValueError(
-                f"Invalid menu_page() in {file}: "
-                f"section_name={section_name!r}, "
-                f"subsection_name={subsection_name!r}"
-            )
+                path = path.split("/") if path else []
 
-        section = menu_items.setdefault(section_name, {})
+            if "label" in kwargs:
+                label = kwargs["label"]
 
-        if not isinstance(section, dict):
-            raise ValueError(f"Section '{section_name}' already exists as a page")
+        if not isinstance(label, str) or not label:
+            raise ValueError(f"Invalid menu_page() label in {file}: {label!r}")
 
-        section[subsection_name] = file
-    
-    mapper = (
-        __sort
-        if mapper is None or mapper == "sort"
-        else (
-            __token_underscore
-            if mapper == "token_underscore"
-            else (mapper if callable(mapper) else __sort)
-        )
-    )
+        if any(not isinstance(level, str) or not level for level in path):
+            raise ValueError(f"Invalid menu_page() path in {file}: {path!r}")
 
-    return mapper(menu_items)
+        full_path = [*path, label]
+        node = menu_items
 
-def __sort(items: dict[str, dict[str, Path]]) -> dict[str, dict[str, Path]]:
-    sorted_items = {}
-    for k, subitems in sorted(items.items()):
-        sorted_items[k] = dict(sorted(subitems.items()))
-    return sorted_items
+        for level in full_path[:-1]:
+            existing = node.get(level)
 
-def __token_underscore(
-    items: dict[str, dict[str, Path]]
-) -> dict[str, dict[str, Path]]:
-    def parse(name: str) -> tuple[int, str]:
-        m = re.match(r"^(\d+)_(.+)$", name)
-        if m:
-            return int(m.group(1)), m.group(2)
+            if existing is None:
+                existing = {}
+                node[level] = existing
+            elif not isinstance(existing, dict):
+                # The existing page is also becoming a parent.
+                existing = {None: existing}
+                node[level] = existing
 
-        return float("inf"), name
+            node = existing
 
-    result: dict[str, dict[str, Path]] = {}
+        leaf = full_path[-1]
 
-    for section_name, subitems in sorted(
-        items.items(),
-        key=lambda item: parse(item[0]),
-    ):
-        _, clean_section_name = parse(section_name)
+        if leaf not in node:
+            node[leaf] = st.Page(file)
+        else:
+            existing = node[leaf]
 
-        result[clean_section_name] = {
-            parse(subsection_name)[1]: path
-            for subsection_name, path in sorted(
-                subitems.items(),
-                key=lambda item: parse(item[0]),
-            )
-        }
+            if isinstance(existing, dict):
+                if None in existing:
+                    raise ValueError(f"Duplicate directory page '{leaf}' in {file}")
 
-    return result
+                existing[None] = st.Page(file)
+            else:
+                raise ValueError(f"Duplicate menu page '{leaf}' in {file}")
+
+
+    if mapper == "sort":
+        return __sort_tree(menu_items)
+
+    if mapper == "token_underscore":
+        return __sort_tree(menu_items, token_underscore=True)
+
+    if callable(mapper):
+        return mapper(menu_items)
+
+    raise ValueError(f"Unknown mapper: {mapper!r}")
 
 def scan_service_pages(
     ui_package_root: str | Path,
     *ui_package_path: str,
-) -> list[Path]:
+) -> list[st.Page]:
     """
     Scans all .py files for service_page() calls.
 
@@ -161,56 +212,81 @@ def scan_service_pages(
 
     for file, calls in service_page_calls.items():
         if calls: 
-            service_pages.append(file)
+            service_pages.append(st.Page(file))
 
     return service_pages
 
-def streamlit_page(
-    menu_pages_tree: dict[str, str | Path | dict[str, str | Path]],
-    service_pages: list[str | Path] = None,
-    initial_page_title: str | None = None,
-) -> StreamlitPage:
-    """
-    Creates and return a Streamlit navigation page.
 
-    Configures the sidebar navigation tree and sets the browser tab
-    title and app icon.
+def __collect_pages(tree: MenuTree, target: list[st.Page]) -> None:
+    if None in tree:
+        page = tree[None]
+        if isinstance(page, dict):
+            raise TypeError("None key must contain a page, not a submenu")
+        target.append(page)
 
-    menu_pages_tree can be:
-    - a manually build menu dictionary
-    - automagic menu from scan_menu_items()
-    - user-centric menu, filtered with allowed pages list from auth.base.current_user_service.CurrentUserService.get_allowed_user_pages()
+    for label, value in tree.items():
+        if label is None:
+            continue
 
-    Same applied to service_pages.
-
-    Since Streamlit rerun script and this method will called multible times, the view reloads each time.
-
-    Also, registers service pages so the flow can switch to them.
-    """
-
-    sidebar_menu = {}
-    for label, page_or_submenu in menu_pages_tree.items():
-        submenu = []
-        sidebar_menu[label] = submenu
-        if isinstance(page_or_submenu, dict):
-            for submenu_label, submenu_page in page_or_submenu.items():
-                submenu.append(st.Page(page=submenu_page, title=submenu_label))
+        if isinstance(value, dict):
+            __collect_pages(value, target)
         else:
-            submenu.append(st.Page(page=page_or_submenu, title=label))
+            target.append(value)
 
-    if service_pages:
-        service_pages_list = []
-        sidebar_menu["hidden"] = service_pages_list
-        for service_page in service_pages:
-            service_pages_list.append(st.Page(page=service_page, visibility="hidden"))
+def __render_menu(parent_label: str, parent_key: str, tree: MenuTree) -> None:
+    if None in tree:
+        st.page_link(
+            tree[None],
+            label=parent_label,
+            width="stretch"
+        )
+
+    for label, page_or_dict in tree.items():
+        if label is None:
+            continue
+
+        if isinstance(page_or_dict, dict):
+            key = f"{parent_key}_{re.sub(r"\s", "_", label.lower())}"
+            with st.expander(label, expanded=True, key=key, type="step", icon=":material/folder:"):
+                __render_menu(label, key, page_or_dict)
+
+        else:
+            st.page_link(
+                page_or_dict,
+                label=label,
+                width="stretch"
+            )
+
+def streamlit_page(
+    menu_pages_tree: MenuTree,
+    service_pages: list[st.Page] | None = None,
+    initial_page_title: str | None = None,
+) -> st.Page:
+    """
+    Register all menu and service pages with Streamlit and render
+    a recursive sidebar using st.expander() and st.page_link().
+
+    Directory pages are stored under the None key and rendered
+    before their child pages.
+
+    Returns the current page selected by st.navigation().
+    """
 
     st.set_page_config(
-        page_title=initial_page_title, layout="wide", initial_sidebar_state="auto"
+        page_title=initial_page_title,
+        layout="wide",
+        initial_sidebar_state="auto",
     )
 
-    pg = st.navigation(sidebar_menu, position="sidebar", expanded=False)
+    registered_pages: list[st.Page] = list(service_pages)
+    __collect_pages(menu_pages_tree, registered_pages)
 
-    return pg
+    current_page = st.navigation(registered_pages, position="hidden")
+
+    with st.sidebar:
+        __render_menu("root", "sidebar", menu_pages_tree)
+
+    return current_page
 
 def streamlit_main_sctipt_path() -> Path:
     """
