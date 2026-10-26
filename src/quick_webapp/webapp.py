@@ -33,6 +33,15 @@ def menu_page(*args, path: str | None = None, label: str | None = None, icon: st
     """
     pass
 
+def menu_item(id: str | None = None):
+    """
+    Marker method to apply automagic for menu assembler.
+    Used in assemble_menu_pages() that scans .py UI files to fill its map of the application menu.
+
+    id is a menu identifier that will be used in a menu assembly and must not be in: 'label', 'icon', 'items'
+    """
+    pass
+
 def service_page():
     """
     Marker method to apply automagic for registering Streamlit pages that are NOT to be in navigation sidebar.
@@ -65,7 +74,7 @@ MenuTree: TypeAlias = dict[str | None, "MenuTree | st.Page"]
 def __sort_tree(
     tree: MenuTree,
     *,
-    token_underscore: bool = False,
+    token_underscore: bool = False
 ) -> MenuTree:
     key = __token_key if token_underscore else __natural_key
     result: MenuTree = {}
@@ -142,7 +151,7 @@ def scan_menu_pages(
                 path = kwargs["path"]
 
                 if not isinstance(path, str):
-                    raise TypeError(f"menu_page() path must be a string in {file}")
+                    raise ValueError(f"menu_page() path must be a string in {file}")
 
                 path = path.split("/") if path else []
 
@@ -200,9 +209,145 @@ def scan_menu_pages(
 
     raise ValueError(f"Unknown mapper: {mapper!r}")
 
+MenuSkeleton: TypeAlias = dict[str, "MenuSkeleton | str"]
+__RESERVED_MENU_IDS = {"label", "icon", "items"}
+
+def __validate_assemble_parts(
+    skeleton: MenuSkeleton,
+    scanned: dict[str, object],
+    referenced_ids: set[str]
+) -> set[str]:
+
+    if not skeleton: 
+        raise ValueError("Value must not be null or empty")
+
+    for key, value in skeleton.items():
+        if key is None:
+            raise ValueError("None key is not allowed as a MenuSkeleton key.")
+
+        if not isinstance(value, dict):
+            raise ValueError(f"value for key '{key!r}' has type '{type(value)}', only 'dict' is allowed.")
+
+        if key in scanned:
+            params = list(value.keys())
+            if "label" in params: params.remove("label")
+            if "icon" in params: params.remove("icon")
+
+            if params:
+                raise ValueError(f"Excessive keys nor inner pages for key '{key!r}' in its config dictionary value are not allowed since the key is an ID in {scanned[key]}, keys [{', '.join(params)}].")
+            
+            referenced_ids.add(key)
+
+        else:
+            __validate_assemble_parts(value, scanned, referenced_ids)
+
+    return referenced_ids
+
+def __build_tree(
+    skeleton: MenuSkeleton,
+    scanned: dict[str, Path]
+) -> MenuTree:
+    result: MenuTree = {}
+
+    for key, value in skeleton.items():
+        label = value.get("label", key)
+        icon = value.get("icon")
+
+        if key in scanned:
+            result[label] = st.Page(
+                scanned[key],
+                icon=icon
+            )
+        else:
+            result[label] = __build_tree(value, scanned)
+
+    return result
+
+def assemble_menu_pages(
+    skeleton: MenuSkeleton,
+    ui_package_root: str | Path,
+    *ui_package_path: str
+) -> MenuTree:
+    """
+    Scan menu_item() calls and assemble a recursive sidebar tree.
+
+    By default, id gets fetched from the file name (without extension so user code just call the method without args), then first arg overrides the value, then kwarg with name 'id' overrides the value.
+
+    Skeleton rules:
+    - A dictionary key found in the scanned IDs represents a page.
+    - A dictionary key NOT found in the scanned IDs represents a directory.
+    - Dict values configure 'label', 'icon' and 'items' (in case of dicrectory).
+    - IDs may appear multiple times in the skeleton.
+
+    Example of menu page (leaf) of MenuSkeleton element:
+
+    {
+        ...
+        "the_page_id": {
+            "label": "The Page",
+            "icon": "💡"
+        }
+        ...
+    }
+
+    Example of menu directory (node) of MenuSkeleton element:
+
+    {
+        ...
+        "The directory": {
+            ...
+            "an_id": {...},
+            "Inner directory": {...}
+            ...
+        }
+        ...
+    }
+
+    Raises ValueError for duplicate scanned IDs, unused scanned IDs, invalid configuration, or reserved IDs.
+    """
+
+    menu_item_calls = scan_params(
+        "menu_item",
+        ui_package_root,
+        *ui_package_path
+    )
+
+    scanned: dict[str, Path] = {}
+
+    for file, calls in menu_item_calls.items():
+        if not calls:
+            continue
+
+        call = calls[0]
+        args = call["args"]
+        kwargs = call["kwargs"]
+
+        item_id = file.stem
+        item_id = args[0] if args else item_id
+        item_id = kwargs.get("id") if "id" in kwargs else item_id
+
+        if not item_id or not isinstance(item_id, str):
+            raise ValueError(f"Invalid menu_item() ID in {file}: {item_id!r}")
+
+        if item_id in __RESERVED_MENU_IDS:
+            raise ValueError(f"Reserved menu_item() ID {item_id!r} in {file}")
+
+        if item_id in scanned:
+            raise ValueError(f"Duplicate menu_item() ID {item_id!r} or file name collision if ID argument was not been used, with {scanned[item_id]} and {file}")
+
+        scanned[item_id] = file
+
+    unused_ids = scanned.keys() - __validate_assemble_parts(skeleton, scanned, set())
+
+    if unused_ids:
+        details = "\n".join(f"'{menu_id!r}' in {scanned[menu_id]}" for menu_id in sorted(unused_ids))
+        raise ValueError(f"Scanned menu_item(id) IDs not used by skeleton:\n{details}")
+
+    return __build_tree(skeleton, scanned)
+
 def scan_service_pages(
     ui_package_root: str | Path,
-    *ui_package_path: str,
+    *ui_package_path: str
 ) -> list[st.Page]:
     """
     Scans all .py files for service_page() calls.
@@ -229,7 +374,7 @@ def __collect_pages(tree: MenuTree, target: list[st.Page]) -> None:
     if None in tree:
         page = tree[None]
         if isinstance(page, dict):
-            raise TypeError("None key must contain a page, not a submenu")
+            raise ValueError("None key must contain a page, not a submenu")
         target.append(page)
 
     for label, value in tree.items():
