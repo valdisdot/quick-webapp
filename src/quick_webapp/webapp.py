@@ -13,18 +13,23 @@ from quick_webapp import ensure_session_object
 from quick_webapp.util.ui import apply_css, execute_javascript
 from quick_webapp.util.reflection import scan_params
 
-
-def menu_page(*args, path: str | None = None, label: str | None = None, **kwargs):
+def menu_page(*args, path: str | None = None, label: str | None = None, icon: str | None = None, **kwargs):
     """
     Marker method to apply automagic for menu builder.
     Used in scan_menu_pages() that scans .py UI files to build an application menu.
 
+    path must be '/' separate path to the parent subitem
+
+    label is the menu item itself
+
+    icon is either an emogji or a Google material signature (":material/icon_name:") that will be passed to streamlit.Page on parsing
+
     Like:
 
-    section_name
-    - subsection_name
-    - subsection_name
-    - and so on
+    path
+    [icon] label
+    [icon] label
+    ... and so on
     """
     pass
 
@@ -87,7 +92,7 @@ def __sort_tree(
 def scan_menu_pages(
     ui_package_root: str | Path,
     *ui_package_path: str,
-    mapper: Literal["sort", "token_underscore"] | Callable[[MenuTree], MenuTree] = "sort",
+    mapper: Literal["sort", "token_underscore"] | Callable[[MenuTree], MenuTree] = "sort"
 ) -> MenuTree:
     """
     Scans all .py files for menu_page(...) calls and builds a sidebar tree.
@@ -126,6 +131,7 @@ def scan_menu_pages(
 
         path = []
         label = None
+        icon = None
 
         if args:
             path.extend(args[:-1])
@@ -143,6 +149,9 @@ def scan_menu_pages(
             if "label" in kwargs:
                 label = kwargs["label"]
 
+            if "icon" in kwargs:
+                icon = kwargs["icon"]
+
         if not isinstance(label, str) or not label:
             raise ValueError(f"Invalid menu_page() label in {file}: {label!r}")
 
@@ -159,7 +168,6 @@ def scan_menu_pages(
                 existing = {}
                 node[level] = existing
             elif not isinstance(existing, dict):
-                # The existing page is also becoming a parent.
                 existing = {None: existing}
                 node[level] = existing
 
@@ -168,7 +176,7 @@ def scan_menu_pages(
         leaf = full_path[-1]
 
         if leaf not in node:
-            node[leaf] = st.Page(file)
+            node[leaf] = st.Page(file, icon=icon)
         else:
             existing = node[leaf]
 
@@ -176,7 +184,7 @@ def scan_menu_pages(
                 if None in existing:
                     raise ValueError(f"Duplicate directory page '{leaf}' in {file}")
 
-                existing[None] = st.Page(file)
+                existing[None] = st.Page(file, icon=icon)
             else:
                 raise ValueError(f"Duplicate menu page '{leaf}' in {file}")
 
@@ -233,7 +241,7 @@ def __collect_pages(tree: MenuTree, target: list[st.Page]) -> None:
         else:
             target.append(value)
 
-def __render_menu(parent_label: str, parent_key: str, tree: MenuTree) -> None:
+def __render_menu(parent_label: str, parent_key: str, menu_directory_item_icon: str, tree: MenuTree) -> None:
     if None in tree:
         st.page_link(
             tree[None],
@@ -247,8 +255,8 @@ def __render_menu(parent_label: str, parent_key: str, tree: MenuTree) -> None:
 
         if isinstance(page_or_dict, dict):
             key = f"{parent_key}_{re.sub(r"\s", "_", label.lower())}"
-            with st.expander(label, expanded=True, key=key, type="step", icon=":material/folder:"):
-                __render_menu(label, key, page_or_dict)
+            with st.expander(label, expanded=True, key=key, type="step", icon=menu_directory_item_icon):
+                __render_menu(label, key, menu_directory_item_icon, page_or_dict)
 
         else:
             st.page_link(
@@ -259,8 +267,9 @@ def __render_menu(parent_label: str, parent_key: str, tree: MenuTree) -> None:
 
 def streamlit_page(
     menu_pages_tree: MenuTree,
-    service_pages: list[st.Page] | None = None,
+    service_pages: list[st.Page],
     initial_page_title: str | None = None,
+    menu_directory_item_icon: str = ":material/folder:"
 ) -> st.Page:
     """
     Register all menu and service pages with Streamlit and render
@@ -281,10 +290,10 @@ def streamlit_page(
     registered_pages: list[st.Page] = list(service_pages)
     __collect_pages(menu_pages_tree, registered_pages)
 
-    current_page = st.navigation(registered_pages, position="hidden")
+    current_page = st.navigation(list({page.url_path: page for page in registered_pages}.values()), position="hidden")
 
     with st.sidebar:
-        __render_menu("root", "sidebar", menu_pages_tree)
+        __render_menu("root", "sidebar", menu_directory_item_icon, menu_pages_tree)
 
     return current_page
 
