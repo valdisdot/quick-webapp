@@ -1,8 +1,8 @@
 from collections.abc import Callable
 import streamlit as st
 import quick_webapp.util.ui as ui
-from quick_webapp.auth.basic.user import User
-from quick_webapp.auth.basic.user_service import UserService, InvalidUserSessionException, UserLockedException, UserNotActiveException, UserNotFoundException, UserLayerException
+from quick_webapp.security.basic.user import User
+from quick_webapp.security.basic.user_service import UserService, InvalidUserSessionException, UserLockedException, UserNotActiveException, UserNotFoundException, UserLayerException
 
 def login_form(
         user_service: UserService,

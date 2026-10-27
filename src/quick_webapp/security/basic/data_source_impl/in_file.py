@@ -1,8 +1,8 @@
 
 import json
 import os
-from quick_webapp.auth.basic.user import User
-from quick_webapp.auth.basic.data_source import UserDataSource, UserDataSourceException
+from quick_webapp.security.basic.user import User
+from quick_webapp.security.basic.data_source import UserDataSource, UserDataSourceException
 
 class InFileUserDataSource(UserDataSource):
     """

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from quick_webapp.auth.basic.user import User
+from quick_webapp.security.basic.user import User
 
 class UserDataSourceException(Exception):
     """

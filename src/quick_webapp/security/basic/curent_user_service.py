@@ -2,8 +2,8 @@ from __future__ import annotations
 from typing import Iterable 
 import streamlit as st
 from pathlib import Path
-from quick_webapp.auth.basic.user import User
-from quick_webapp.auth.basic.user_service import UserService, InvalidUserSessionException, UserNotFoundException
+from quick_webapp.security.basic.user import User
+from quick_webapp.security.basic.user_service import UserService, InvalidUserSessionException, UserNotFoundException
 import quick_webapp.util.ui as ui
 from quick_webapp.util.reflection import scan_params
 

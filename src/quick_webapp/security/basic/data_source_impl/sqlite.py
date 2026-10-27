@@ -1,6 +1,6 @@
 import sqlite3
-from quick_webapp.auth.basic.user import User
-from quick_webapp.auth.basic.data_source import UserDataSource, UserDataSourceException
+from quick_webapp.security.basic.user import User
+from quick_webapp.security.basic.data_source import UserDataSource, UserDataSourceException
 
 class SQLiteUserDataSource(UserDataSource):
     def __init__(self, predefined_roles: list[str], db_path="users.db"):

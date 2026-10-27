@@ -2,8 +2,8 @@ from collections.abc import Callable, Iterable
 from uuid import uuid4
 import time
 import streamlit as st
-from quick_webapp.auth.basic.user import User
-from quick_webapp.auth.basic.data_source import UserDataSource, UserDataSourceException
+from quick_webapp.security.basic.user import User
+from quick_webapp.security.basic.data_source import UserDataSource, UserDataSourceException
 
 
 class UserLayerException(Exception):
