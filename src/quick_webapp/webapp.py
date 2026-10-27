@@ -10,7 +10,7 @@ import streamlit as st
 from streamlit import config as st_config
 from streamlit.navigation.page import StreamlitPage
 from quick_webapp import ensure_session_object
-from quick_webapp.util.ui import apply_css, execute_javascript
+from quick_webapp.ui import apply_css, execute_javascript
 from quick_webapp.util.reflection import scan_params
 
 def menu_page(*args, path: str | None = None, label: str | None = None, icon: str | None = None, **kwargs):

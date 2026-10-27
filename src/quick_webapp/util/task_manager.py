@@ -4,23 +4,18 @@ from typing import Any
 import threading
 import time
 
-
 class TaskManager:
     """
-    Wrapper aka ExecutorService with a counter.
+    Wrapper around an ExecutorService with a task counter.
     """
 
-    def __init__(self):
+    def __init__(self, thread_name_prefix):
         self.__tasks: dict[int, Future] = {}
         self.__lock = threading.Lock()
-        self.__executor = ThreadPoolExecutor()
+        self.__executor = ThreadPoolExecutor(thread_name_prefix=thread_name_prefix)
 
     @staticmethod
-    def __schedule(
-        callable_: Callable[[], Any],
-        attempts: int,
-        sleep_interval: float
-    ) -> Any:
+    def __schedule(callable_: Callable[[], Any], attempts: int, sleep_interval: float) -> Any:
         counter = 0
 
         while True:
@@ -37,24 +32,18 @@ class TaskManager:
             else:
                 return result
 
-    def schedule(
-        self,
-        callable_: Callable[[], Any],
-        attempts: int = 1,
-        sleep_interval: float = 1.0
-    ) -> int:
+    def schedule(self, callable_: Callable[[], Any], attempts: int = 1, sleep_interval: float = 1.0) -> int:
         """
-        Creates a task that calls callable() up to `attempts` times,
-        with an interval of `sleep_interval` between attempts.
+        Creates a task that calls the given callable up to 'attempts' times
+        with a delay of 'sleep_interval' seconds between attempts.
 
-        callable must return a non-None value,
-        otherwise it will be executed `attempts` times.
+        The callable should return a non-None value to stop retrying,
+        otherwise it will be called 'attempts' times.
 
-        To interrupt the task early from within callable,
-        callable must raise an exception.
+        To interrupt early from inside, the callable should raise an exception.
 
         If attempts=0, the task will not be scheduled.
-        If sleep_interval=0, there will be no delay.
+        If sleep_interval=0, there will be no delay between attempts.
         """
 
         if callable_ is None or not callable(callable_):
@@ -82,7 +71,7 @@ class TaskManager:
 
     def is_completed(self, task_id: int) -> bool:
         """
-        Checks whether the task has completed.
+        Checks if the task with the given task_id has completed.
         """
 
         with self.__lock:
@@ -92,11 +81,11 @@ class TaskManager:
 
     def result(self, task_id: int) -> Any:
         """
-        Returns the task result or raises an exception.
+        Returns the result of the task or raises an exception.
 
-        CancelledError - the task was cancelled.
-        TimeoutError - if a timeout is specified.
-        Any other exception - an exception raised by callable().
+        CancelledError - if the task was cancelled
+        TimeoutError - if a timeout is used
+        Other exceptions - any exception raised by the callable
         """
 
         with self.__lock:
@@ -109,7 +98,7 @@ class TaskManager:
 
     def cancel(self, task_id: int) -> bool:
         """
-        Cancels the task.
+        Cancels the task with the given task_id.
 
         Returns True if the task was successfully cancelled.
         """

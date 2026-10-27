@@ -1,6 +1,6 @@
 from collections.abc import Callable
 import streamlit as st
-import quick_webapp.util.ui as ui
+import quick_webapp.ui as ui
 from quick_webapp.security.basic.user import User
 from quick_webapp.security.basic.user_service import UserService, InvalidUserSessionException, UserLockedException, UserNotActiveException, UserNotFoundException, UserLayerException
 

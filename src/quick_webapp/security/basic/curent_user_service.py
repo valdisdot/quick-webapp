@@ -5,7 +5,7 @@ from pathlib import Path
 from quick_webapp.security.basic.user import User
 from quick_webapp.security.basic.user_service import UserService, InvalidUserSessionException, UserNotFoundException
 from quick_webapp.webapp import MenuTree
-import quick_webapp.util.ui as ui
+import quick_webapp.ui as ui
 from quick_webapp.util.reflection import scan_params
 
 def scan_pages_permissions(

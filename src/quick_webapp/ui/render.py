@@ -5,7 +5,7 @@ from pandas import DataFrame
 import difflib
 import html
 import streamlit as st
-from quick_webapp.util.data.data_view import DataView
+from quick_webapp.ui.data_view import DataView
 from quick_webapp.util.commons import extract_exception_messages
 
 
