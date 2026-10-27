@@ -4,6 +4,7 @@ import streamlit as st
 from pathlib import Path
 from quick_webapp.security.basic.user import User
 from quick_webapp.security.basic.user_service import UserService, InvalidUserSessionException, UserNotFoundException
+from quick_webapp.webapp import MenuTree
 import quick_webapp.util.ui as ui
 from quick_webapp.util.reflection import scan_params
 
@@ -49,53 +50,112 @@ def scan_pages_permissions(
 
     return permission_items
 
+def __filter_menu_tree_by_permissions(
+    menu_pages_tree: MenuTree,
+    permission_map: dict[Path, list[str] | None],
+    user: User | None,
+    is_logged_in: bool
+) -> MenuTree:
+    filtered_tree: MenuTree = {}
 
-def filter_current_user_menu_pages(menu_pages: dict[str, dict[str, Path]], current_user_service: CurrentUserService, permission_map: dict[Path, list[str] | None]) -> dict[str, dict[str, Path]]:
+    for label, page_or_directory in menu_pages_tree.items():
+        if isinstance(page_or_directory, st.Page):
+            page_path = page_or_directory._page
+            roles = permission_map.get(page_path)
+
+            if page_path not in permission_map or roles is None:
+                filtered_tree[label] = page_or_directory
+            elif is_logged_in and roles and user.has_roles(roles):
+                filtered_tree[label] = page_or_directory
+
+        else:
+            filtered_children = __filter_menu_tree_by_permissions(
+                page_or_directory,
+                permission_map,
+                user,
+                is_logged_in
+            )
+
+            if filtered_children:
+                filtered_tree[label] = filtered_children
+
+    return filtered_tree
+
+def filter_only_permitted_menu_pages(
+    menu_pages_tree: MenuTree,
+    current_user_service: CurrentUserService,
+    permission_map: dict[Path, list[str] | None]
+) -> MenuTree:
     """
-    Filters target's current user persissions.
-    For not logged in users only files that does not have only_permitted(...) or not in the permission_map calls be included.
-    For logged in also files that have both noargs only_permitted() and only_permitted(roles) with user-roles be included.
+    Filters target's current user persissions for menu pages (ones that rendered in sidebar).
+    For not logged-in users only pages that does not have 'only_permitted(...)' or not in the permission_map calls be included.
+    Also, for logged-in users pages that have both noargs only_permitted() and only_permitted(roles) with user-roles be included.
 
-    Otherwise, it filters out the Paths that explicetly protected with only_permitted(...)
+    In common, the method filters out the pages that explicetly protected with only_permitted(...)
 
-    - not in permission_map - anyone
-    - permission_map[e] is None - anyone
-    - permission_map[e] is [] - logged in
-    - permission_map[e] is [r1, r2, ...] - logged in that has any of the roles
+    - page path not in permission_map - anyone
+    - permission_map[path] is None - anyone
+    - permission_map[path] is [] - only logged-in
+    - permission_map[path] is [r1, r2, ...] - logged in that has at least one of the roles [r1, r2, ...]
+
+    The method only filter out the pages that should not be registered by current user. If other user that has permission logged in (page will be registered) and share the URL, other user (that does not have permission) might see the page content.
+
+    Otherwise, the page itself also must protect the render from unintended access, this method only work on registration and sidebar render level.
+    """
+    try:
+        user = current_user_service.get_user()
+        is_logged_in = True
+    except (InvalidUserSessionException, UserNotFoundException):
+        user = None
+        is_logged_in = False
+
+    return __filter_menu_tree_by_permissions(
+        menu_pages_tree,
+        permission_map,
+        user,
+        is_logged_in
+    )
+
+def filter_only_permitted_service_pages(
+    service_pages: list[st.Page],
+    current_user_service: CurrentUserService,
+    permission_map: dict[Path, list[str] | None]
+) -> list[st.Page]:
+    """
+    Filters target's current user persissions for service pages (ones that not in the menu sidebar).
+    For not logged-in users only pages that does not have 'only_permitted(...)' or not in the permission_map calls be included.
+    Also, for logged-in users pages that have both noargs only_permitted() and only_permitted(roles) with user-roles be included.
+
+    In common, the method filters out the pages that explicetly protected with only_permitted(...)
+
+    - page path not in permission_map - anyone
+    - permission_map[path] is None - anyone
+    - permission_map[path] is [] - only logged-in
+    - permission_map[path] is [r1, r2, ...] - logged in that has at least one of the roles [r1, r2, ...]
+
+    The method only filter out the pages that should not be registered by current user. If other user that has permission logged in (page will be registered) and share the URL, other user (that does not have permission) might see the page content.
+
+    Otherwise, the page itself also must protect the render from unintended access, this method only work on registration level.
     """
 
     try:
+        res = []
         user = current_user_service.get_user()
-        res = {}
-        for menu_label, menu in menu_pages.items():
-            current_user_menu = {}
-
-            for sublabel, path in menu.items():
-                roles = permission_map.get(path)
-                if not roles or user.has_roles(roles):
-                    current_user_menu[sublabel] = path
-            
-            if current_user_menu:
-                res[menu_label] = current_user_menu
+        for service_page in service_pages:
+            roles = permission_map.get(service_page._page)
+            if not roles or user.has_roles(roles):
+                res.append(service_page)
 
         return res
 
     except (InvalidUserSessionException, UserNotFoundException):
-        public_pages = {}
+        res = []
+        for service_page in service_pages:
+            if not permission_map.get(service_page._page):
+                res.append(service_page)
 
-        for menu_label, menu in menu_pages.items():
-            current_user_menu = {}
+        return res
 
-            for sublabel, path in menu.items():
-                roles = permission_map.get(path)
-                if roles is None:
-                    current_user_menu[sublabel] = path
-            
-            if current_user_menu:
-                public_pages[menu_label] = current_user_menu
-
-        return public_pages
-    
     except:
         raise
 
@@ -208,8 +268,3 @@ class CurrentUserService:
             pass
         finally:
             st.switch_page(self.__login_page)
-
-    
-
-    
-
