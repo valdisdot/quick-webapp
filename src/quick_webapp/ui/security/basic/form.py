@@ -377,8 +377,7 @@ def manage_user_form(
                 user = __fetch_user(user_name, user_service)
             
             if st.button(logout_label, type="primary"):
-                user_service.close_user_sessions(user.user_name)
+                user_service.close_all_sessions(user.user_name)
                 user = __fetch_user(user_name, user_service)
 
     dialog(__fetch_user(user_name, user_service))
-
