@@ -437,8 +437,9 @@ def streamlit_page(
 
     current_page = st.navigation(list({page.url_path: page for page in registered_pages}.values()), position="hidden")
 
-    with st.sidebar:
-        __render_menu("root", "sidebar", menu_directory_item_icon, menu_pages_tree)
+    if menu_pages_tree:
+        with st.sidebar:
+            __render_menu("root", "sidebar", menu_directory_item_icon, menu_pages_tree)
 
     return current_page
 
@@ -458,13 +459,15 @@ class WebApplication:
 
     @classmethod
     def __build_base_css(cls) -> str:
-        theme_base = st_config.get_option("theme.base")
-        theme_sidebar_bg = st_config.get_option("theme.sidebar.backgroundColor")
-        theme_secondary_bg = st_config.get_option("theme.secondaryBackgroundColor")
+        config = st_config.get_config_options(force_reparse=True)
+        theme_base = config.get("theme.base").value
+        theme_sidebar_bg = config.get("theme.sidebar.backgroundColor").value
+        theme_secondary_bg = config.get("theme.secondaryBackgroundColor").value
         sidebar_bg = theme_sidebar_bg if theme_sidebar_bg else (theme_secondary_bg if theme_secondary_bg else ("#f0f2f6" if theme_base == "light" else "#262730"))
-        theme_sidebar_border_color = st_config.get_option("theme.sidebar.borderColor")
-        theme_border_color = st_config.get_option("theme.borderColor")
-        sidebar_border_on = int(st_config.get_option("theme.showSidebarBorder"))
+        theme_sidebar_border_color = config.get("theme.sidebar.borderColor").value
+        theme_border_color = config.get("theme.borderColor").value
+        show_sidebar_border = config.get("theme.showSidebarBorder").value
+        sidebar_border_on = int(show_sidebar_border) if show_sidebar_border else 0
         sidebar_border_bg = theme_sidebar_border_color if theme_sidebar_border_color else (theme_border_color if theme_border_color else ("#d6d6d6" if theme_base == "light" else "#4e4e4e"))
 
         return f"""
