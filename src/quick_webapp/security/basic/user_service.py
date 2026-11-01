@@ -107,7 +107,7 @@ class UserSession(Session):
         Check is session is valid now.
         """
 
-        time.time() > self.__expires_at and self.__locale == locale and self.__timezone == timezone
+        not self.is_expired and self.__locale == locale and self.__timezone == timezone
 
 class UserService:
     """
