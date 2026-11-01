@@ -1,9 +1,10 @@
-from collections.abc import Iterable
+from collections.abc import Sequence
 
 class User:
     """
     User record class.
     In addition to simple username it has additional flags: active, locked, requires_password_update
+    Serves DTO fucntion (when passed into the service) and record function (when used inside the service).
     """
 
     def __init__(self, 
@@ -14,17 +15,19 @@ class User:
                  active: bool = True,
                  requires_password_update: bool = False
     ):
-        self.__user_name = user_name
-        self.__roles = roles.copy() if roles else []
-        self.__name = name
-        self.__locked = locked if locked is not None else False
-        self.__active = active if active is not None else True
-        self.__requires_password_update = requires_password_update if requires_password_update is not None else False
+        self.__user_name = user_name.strip() if user_name is not None and isinstance(user_name, str) else None
+        self.__roles = roles.copy() if roles and isinstance(roles, Sequence) else []
+        self.__name = str(name) if name is not None and isinstance(name, str) else None
+        self.__locked = bool(locked)
+        self.__active = bool(active)
+        self.__requires_password_update = bool(requires_password_update)
 
     @property
-    def user_name(self):
+    def user_name(self) -> str:
         """
         Username or login.
+        None if contructor user_name arg was None or not string.
+        Retuns stripped version of contructor user_name arg.
         """
 
         return self.__user_name
@@ -33,6 +36,7 @@ class User:
     def name(self) -> str:
         """
         Common person name.
+        None if contructor name args was None or not string.
         """
 
         return self.__name
@@ -40,35 +44,48 @@ class User:
     @property
     def roles(self) -> list[str]:
         """
-        List of user roles.
+        List of user roles (copy of)
         """
 
         return self.__roles.copy()
     
-    def has_roles(self, roles: str | list[str]) -> bool:
+    def has_roles(self, roles: str | Sequence[str]) -> bool:
         """
-        Checks if roles in user roles. In case of iterable, one role match is enough to claim true (any of element of roles).
-        If roles neither string nor iterable - returns false.
+        Checks if any of roles is in user roles. In case of a sequence, one role match is enough to claim true (any of element of roles).
+        If roles is empty, or neither string nor sequence - returns false.
         """
 
-        if isinstance(roles, str):
-            return roles in self.__roles
-        elif isinstance(roles, Iterable):
-            for role in roles:
-                if role in self.__roles:
-                    return True
+        if roles:
+            if isinstance(roles, str):
+                return roles in self.__roles
+            elif isinstance(roles, Sequence):
+                for role in roles:
+                    if role in self.__roles:
+                        return True
         return False
     
     @property
-    def locked(self):
+    def locked(self) -> bool:
+        """
+        Is user locked flag.
+        """
+
         return self.__locked
     
     @property
-    def active(self):
+    def active(self) -> bool:
+        """
+        Is user active flag.
+        """
+
         return self.__active
     
     @property
-    def requires_password_update(self):
+    def requires_password_update(self) -> bool:
+        """
+        Is user must set a new password flag.
+        """
+
         return self.__requires_password_update
     
     def __eq__(self, other):
