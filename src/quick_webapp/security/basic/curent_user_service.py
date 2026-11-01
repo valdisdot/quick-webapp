@@ -53,8 +53,7 @@ def scan_pages_permissions(
 def __filter_menu_tree_by_permissions(
     menu_pages_tree: MenuTree,
     permission_map: dict[Path, list[str] | None],
-    user: User | None,
-    is_logged_in: bool
+    user: User | None
 ) -> MenuTree:
     filtered_tree: MenuTree = {}
 
@@ -65,15 +64,14 @@ def __filter_menu_tree_by_permissions(
 
             if page_path not in permission_map or roles is None:
                 filtered_tree[label] = page_or_directory
-            elif is_logged_in and roles and user.has_roles(roles):
+            elif user and (not roles or user.has_roles(roles)):
                 filtered_tree[label] = page_or_directory
 
         else:
             filtered_children = __filter_menu_tree_by_permissions(
                 page_or_directory,
                 permission_map,
-                user,
-                is_logged_in
+                user
             )
 
             if filtered_children:
@@ -104,16 +102,13 @@ def filter_only_permitted_menu_pages(
     """
     try:
         user = current_user_service.get_user()
-        is_logged_in = True
     except (InvalidUserSessionException, UserNotFoundException):
         user = None
-        is_logged_in = False
 
     return __filter_menu_tree_by_permissions(
         menu_pages_tree,
         permission_map,
-        user,
-        is_logged_in
+        user
     )
 
 def filter_only_permitted_service_pages(
