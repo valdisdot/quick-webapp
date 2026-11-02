@@ -1,0 +1,36 @@
+[server]
+port = 10000
+
+headless = true
+showEmailPrompt = false
+
+[browser]
+serverAddress = "localhost"
+gatherUsageStats = false
+
+[logger]
+level = "info"
+
+[client]
+toolbarMode = "minimal"
+showErrorLinks = false
+
+[runner]
+fastReruns = false
+
+[theme]
+base = "light"
+primaryColor="#4a7dc9"
+backgroundColor = "#f8f5f4"
+secondaryBackgroundColor = "#efeff7"
+textColor = "#040111"
+linkColor = "#17086d"
+linkUnderline = false
+baseFontSize = 14
+buttonRadius = "small"
+borderColor = "#c7c4ca"
+showWidgetBorder = true
+showSidebarBorder = true
+
+[theme.sidebar]
+backgroundColor = "#e4e6ec"
