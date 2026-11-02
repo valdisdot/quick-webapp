@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 import streamlit as st
 import quick_webapp.ui as ui
 from quick_webapp.security.basic.user import User
@@ -65,7 +65,7 @@ def login_form(
 
 def registration_form(
         user_service: UserService,
-        default_role: str,
+        default_roles: str | Iterable[str] | None,
         default_active_status: bool,
         registration_key: str,
         title: str = "Registration",
@@ -88,6 +88,7 @@ def registration_form(
 
     @st.dialog(title, width="small", dismissible=False)
     def dialog():
+        roles = [] if not default_roles else ([str(default_role) for default_role in default_roles] if isinstance(Iterable, default_roles) else [str(default_roles)])
         user_name = st.text_input(user_name_label)
         full_name = st.text_input(full_name_label) if full_name_label is not None else None
         password = st.text_input(password_label, type="password")
@@ -116,7 +117,7 @@ def registration_form(
                         elif len(user_name) and len(password):
                             try:
                                 user_service.register_user(
-                                    User(user_name, [default_role], full_name, False, default_active_status, False),
+                                    User(user_name, roles, full_name, False, default_active_status, False),
                                     password
                                 )
                                 ui.delete_cookie(registration_key)
