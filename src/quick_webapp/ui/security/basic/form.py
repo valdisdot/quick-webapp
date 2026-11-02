@@ -37,7 +37,7 @@ def login_form(
 
                 if registration_key and len(registration_key):
                     if st.button(registration_button_label, type="secondary"):
-                        ui.write_cookie(registration_key, 1, user_service.session_lifespan_seconds)
+                        ui.write_cookie(registration_key, "true", user_service.session_lifespan_seconds)
                         ui.restart_browser_window()
                 else:
                     st.write("")
