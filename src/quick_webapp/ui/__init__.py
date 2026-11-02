@@ -14,7 +14,7 @@ def execute_javascript(script: str):
         }})();
     </script>
     """
-    st.components.v1.html(wrapped_script, height=0, width=0)
+    st.iframe(wrapped_script, height=0, width=0)
 
 def write_cookie(key: str, value: str, max_age_seconds: int):
     """
