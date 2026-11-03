@@ -1,9 +1,12 @@
+from typing import Any, Literal
 from collections.abc import Callable, Iterable
 from pathlib import Path
 import streamlit as st
+from quick_webapp.security.basic.user import User
 from quick_webapp.security.basic.curent_user_service import UserService
 from quick_webapp.ui import read_cookie, get_browser_locate, get_browser_timezone
-from quick_webapp.ui.security.basic.form import login_form, registration_form, set_password_form
+from quick_webapp.ui.action_table import action_table
+from quick_webapp.ui.security.basic.form import login_form, registration_form, set_password_form, edit_user_form
 
 
 class SecurityUIConfig:
@@ -55,11 +58,27 @@ class SecurityUIConfig:
         unlock_label: str = "Unlock",
         logout_label: str = "Logout",
 
+        # Manage users pages
+        search_by_user_name_text_field_label: str = "User name:",
+        search_by_user_name_button: str = "Search",
+        user_name_column_label: str = "username",
+        name_column_label: str = "Name",
+        roles_column_label: str = "Roles",
+        locked_column_label: str = "Is locked?",
+        active_column_label: str = "Is active?",
+        requires_password_update_column_label: str = "Must set password?",
+        edit_user_button_label: str = "Edit",
+        logout_user_button_label: str = "Logout",
+        no_users_found: str = "No users were found...",
+
         # Shared texts
         help_badge: str = "🛟",
         help_text: str | None = None,
         exception_text_mapper: Callable[[Exception], str] = lambda exception: str(exception),
-        passwords_do_not_match_text: str = "Passwords do not match!"
+        passwords_do_not_match_text: str = "Passwords do not match!",
+        true_label: str = "✅",
+        false_label: str = "⬜",
+        null_text: str = "Not set"
     ):
         # Login form
         self.__login_title = login_title
@@ -102,12 +121,28 @@ class SecurityUIConfig:
         self.__lock_label = lock_label
         self.__unlock_label = unlock_label
         self.__logout_label = logout_label
+        self.__no_users_found = no_users_found
+
+        # Manage users pages
+        self.__search_by_user_name_text_field_label = search_by_user_name_text_field_label
+        self.__search_by_user_name_button = search_by_user_name_button
+        self.__user_name_column_label = user_name_column_label
+        self.__name_column_label = name_column_label
+        self.__roles_column_label = roles_column_label
+        self.__locked_column_label = locked_column_label
+        self.__active_column_label = active_column_label
+        self.__requires_password_update_column_label = requires_password_update_column_label
+        self.__edit_user_button_label = edit_user_button_label
+        self.__logout_user_button_label = logout_user_button_label
 
         # Shared texts
         self.__help_badge = help_badge
         self.__help_text = help_text
         self.__exception_text_mapper = exception_text_mapper
         self.__passwords_do_not_match_text = passwords_do_not_match_text
+        self.__true_label = true_label
+        self.__false_label = false_label
+        self.__null_text = null_text
 
     # Login form
 
@@ -241,6 +276,52 @@ class SecurityUIConfig:
     def logout_label(self) -> str:
         return self.__logout_label
 
+    # Manage users pages
+
+    @property
+    def search_by_user_name_text_field_label(self) -> str:
+        return self.__search_by_user_name_text_field_label
+
+    @property
+    def search_by_user_name_button(self) -> str:
+        return self.__search_by_user_name_button
+
+    @property
+    def user_name_column_label(self) -> str:
+        return self.__user_name_column_label
+
+    @property
+    def name_column_label(self) -> str:
+        return self.__name_column_label
+
+    @property
+    def roles_column_label(self) -> str:
+        return self.__roles_column_label
+
+    @property
+    def locked_column_label(self) -> str:
+        return self.__locked_column_label
+
+    @property
+    def active_column_label(self) -> str:
+        return self.__active_column_label
+
+    @property
+    def requires_password_update_column_label(self) -> str:
+        return self.__requires_password_update_column_label
+
+    @property
+    def edit_user_button_label(self) -> str:
+        return self.__edit_user_button_label
+
+    @property
+    def logout_user_button_label(self) -> str:
+        return self.__logout_user_button_label
+
+    @property
+    def no_users_found(self) -> str:
+        return self.__no_users_found
+
     # Shared texts
 
     @property
@@ -258,6 +339,18 @@ class SecurityUIConfig:
     @property
     def passwords_do_not_match_text(self) -> str:
         return self.__passwords_do_not_match_text
+
+    @property
+    def true_label(self) -> str:
+        return self.__true_label
+
+    @property
+    def false_label(self) -> str:
+        return self.__false_label
+
+    @property
+    def null_text(self) -> str:
+        return self.__null_text
 
 
 @st.fragment
@@ -332,3 +425,95 @@ def render_login_page(
             )
         else:
             st.switch_page(logged_in_page_path)
+
+def __call_edit_user_form(user: User, user_service: UserService, page_context: dict[str, Any]):
+    edit_user_form(user.user_name, user_service)
+    page_context["do_search"] = True
+
+def __render_user_roles(user: User):
+    with st.container(horizontal=True, gap="xxsmall"):
+        for role in user.roles:
+            st.write(f':color[{role}]{{foreground="#f5fffa" background="#464bb4"}}')
+
+def __setup_render_all_users_management_page(security_ui_config: SecurityUIConfig, user_service: UserService, page_context: dict[str, Any]):
+    page_context["data_mappers"] = {
+        security_ui_config.user_name_column_label: lambda user: st.write(f"`{user.user_name}`"),
+        security_ui_config.name_column_label: lambda user: st.write(f"**{user.name}**" if user.name else ':color[Not set]{foreground="#6b6b6b" background="#e3e3e3"}'),
+        security_ui_config.roles_column_label: __render_user_roles,
+        security_ui_config.active_column_label: lambda user: st.write(security_ui_config.true_label if user.active else security_ui_config.false_label),
+        security_ui_config.locked_column_label: lambda user: st.write(security_ui_config.true_label if user.locked else security_ui_config.false_label),
+        security_ui_config.requires_password_update_column_label: lambda user: st.write(security_ui_config.true_label if user.requires_password_update else security_ui_config.false_label)
+    }
+
+    page_context["action_mappers"] = {
+        security_ui_config.edit_user_button_label: lambda user: __call_edit_user_form(user, user_service, page_context)
+    }
+
+    page_context["q_user_name"] = ""
+    page_context["users"] = None
+    page_context["do_search"] = None
+    page_context["offset"] = 0
+    page_context["has_more"] = None
+
+@st.fragment
+def render_all_users_management_page(
+    user_service: UserService,
+    context: dict[str, Any],
+    users_per_page = 10,
+    excluding_user_names: list[str] | str | None = None,
+    security_ui_config: SecurityUIConfig = SecurityUIConfig(),
+    width: int | Literal["stretch", "content"] = "stretch",
+    key: str | None = None,
+):
+    key = f"render_all_users_management_page_{key}" if key else "render_all_users_management_page"
+    if not key in context:
+        page_context = {}
+        __setup_render_all_users_management_page(security_ui_config, user_service, page_context)
+        context[key] = page_context
+    else:
+        page_context = context[key]
+
+    if not f"{key}_search_by_user_name_text_field" in st.session_state:
+        st.session_state[f"{key}_search_by_user_name_text_field"] = page_context["q_user_name"]
+    with st.container(width=width):
+        with st.container(horizontal=True, vertical_alignment="bottom", width="content", key=f"{key}_search"):
+            q_user_name = st.text_input(security_ui_config.search_by_user_name_text_field_label, "", width=350, key=f"{key}_search_by_user_name_text_field")
+            page_context["q_user_name"] = q_user_name if q_user_name else ""
+            if st.button("Search", type="primary", key=f"{key}_search_by_user_name_button"):
+                page_context["offset"] = 0
+                page_context["do_search"] = True
+
+        users = page_context.get("users")
+        if page_context["do_search"] or users is None:
+            page_context["do_search"] = None
+            users = user_service.fetch_users(page_context["q_user_name"], page_context["offset"], users_per_page + 1, excluding_user_names)
+            page_context["has_more"] = len(users) > users_per_page
+            users = users[:users_per_page]
+            page_context["users"] = users
+
+        if users:
+            action_table(
+                users,
+                security_ui_config.no_users_found,
+                page_context["data_mappers"],
+                page_context["action_mappers"],
+                container_width="stretch",
+                column_ratio_spec=[1, 2, 3, 0.5, 0.5, 0.5, 0.5],
+                key_suffix=f"{key}_users"
+            )
+
+            with st.container(horizontal=True, gap="xxsmall"):
+                offset = page_context["offset"]
+                if offset > 0 and st.button("<"):
+                    offset = offset - users_per_page
+                    page_context["offset"] = 0 if offset < 0 else offset
+                    page_context["do_search"] = True
+                    st.rerun(scope="fragment")
+
+                if page_context["has_more"] and st.button(">"):
+                    page_context["offset"] = offset + users_per_page
+                    page_context["do_search"] = True
+                    st.rerun(scope="fragment")
+
+        else:
+            st.write(security_ui_config.no_users_found)
