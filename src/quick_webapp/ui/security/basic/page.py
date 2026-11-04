@@ -541,7 +541,7 @@ def render_all_users_management_page(
                 page_context["data_mappers"],
                 page_context["action_mappers"],
                 container_width="stretch",
-                column_ratio_spec=[1, 2, 3, 0.5, 0.5, 0.5, 0.5],
+                column_ratio_spec=[1, 2, 0.5, 0.5, 2, 0.5, 0.5, 0.5, 0.5],
                 key_suffix=f"{key}_users"
             )
 

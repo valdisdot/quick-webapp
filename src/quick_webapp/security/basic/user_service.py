@@ -216,7 +216,7 @@ class UserService:
             if role not in roles:
                 raise InvalidUserDataException("Unknown user role, not from the domain user roles list")
 
-        return User(user_name, user.roles, user.name, user.locked, user.active, user.requires_password_update)
+        return User(user_name, user.is_ui_user, user.is_service_user, user.roles, user.name, user.locked, user.active, user.requires_password_update)
 
     def fetch_roles(self) -> list[str]:
         """
@@ -336,6 +336,8 @@ class UserService:
             self.__user_data_source.save_user(
                 User(
                     user_name,
+                    user.is_ui_user,
+                    user.is_service_user,
                     user.roles,
                     user.name,
                     user.locked,
