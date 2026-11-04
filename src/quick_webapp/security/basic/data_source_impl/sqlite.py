@@ -18,6 +18,8 @@ class SQLiteUserDataSource(UserDataSource):
                 """
                 CREATE TABLE IF NOT EXISTS user (
                     user_name TEXT PRIMARY KEY,
+                    is_ui_user INTEGER NOT NULL,
+                    is_service_user INTEGER NOT NULL,
                     name TEXT,
                     password TEXT NOT NULL,
                     locked INTEGER NOT NULL,
@@ -59,10 +61,12 @@ class SQLiteUserDataSource(UserDataSource):
             user_name = str(user.user_name)
             password = str(password)
             self.__connection.execute(
-                "INSERT INTO user (user_name, name, password, locked, active, requires_password_update) VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO user (user_name, is_ui_user, is_service_user, name, password, locked, active, requires_password_update) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     user_name,
-                    str(user.name) if user.name else None,
+                    int(user.is_ui_user),
+                    int(user.is_service_user),
+                    user.name if user.name else None,
                     password,
                     int(user.locked),
                     int(user.active),
@@ -127,6 +131,8 @@ class SQLiteUserDataSource(UserDataSource):
             roles = [r["role"] for r in roles_cur.fetchall()]
             return User(
                 user_name=row["user_name"],
+                is_ui_user=row["is_ui_user"],
+                is_service_user=row["is_service_user"],
                 roles=roles,
                 name=row["name"],
                 locked=bool(row["locked"]),
@@ -160,7 +166,7 @@ class SQLiteUserDataSource(UserDataSource):
             if where_clauses:
                 where_sql = " WHERE " + " AND ".join(where_clauses)
 
-            query = f"SELECT * FROM user{where_sql} ORDER BY user_name LIMIT ? OFFSET ?"
+            query = f"SELECT * FROM user {where_sql} ORDER BY user_name LIMIT ? OFFSET ?"
             params.extend([limit, offset])
 
             cur = self.__connection.execute(query, tuple(params))
@@ -178,6 +184,8 @@ class SQLiteUserDataSource(UserDataSource):
                 users.append(
                     User(
                         user_name=row["user_name"],
+                        is_ui_user=row["is_ui_user"],
+                        is_service_user=row["is_service_user"],
                         roles=roles,
                         name=row["name"],
                         locked=bool(row["locked"]),
@@ -195,9 +203,7 @@ class SQLiteUserDataSource(UserDataSource):
 
     def update_user_lock(self, user_name: str, lock: bool):
         try:
-            self.__connection.execute(
-                "UPDATE user SET locked = ? WHERE user_name = ?", (int(lock), str(user_name))
-            )
+            self.__connection.execute("UPDATE user SET locked = ? WHERE user_name = ?", (int(lock), str(user_name)))
             self.__connection.commit()
         except sqlite3.DatabaseError as e:
             raise UserDataSourceException(f"Database error while updating a user lock") from e
@@ -209,14 +215,16 @@ class SQLiteUserDataSource(UserDataSource):
         try:
             user_name = str(user.user_name)
             self.__connection.execute(
-                "UPDATE user SET name = ?, locked = ?, active = ?, requires_password_update = ? WHERE user_name = ?",
+                "UPDATE user SET is_ui_user = ?, is_service_user = ?, name = ?, locked = ?, active = ?, requires_password_update = ? WHERE user_name = ?",
                 (
+                    int(user.is_ui_user), 
+                    int(user.is_service_user),
                     str(user.name) if user.name else None,
                     int(user.locked),
                     int(user.active),
                     int(user.requires_password_update),
-                    user_name,
-                ),
+                    user_name
+                )
             )
             
             self.__connection.execute(
@@ -245,15 +253,17 @@ class SQLiteUserDataSource(UserDataSource):
             user_name = str(user.user_name)
             password = str(password)
             self.__connection.execute(
-                "UPDATE user SET name = ?, password = ?, locked = ?, active = ?, requires_password_update = ? WHERE user_name = ?",
+                "UPDATE user SET is_ui_user = ?, is_service_user = ?, name = ?, password = ?, locked = ?, active = ?, requires_password_update = ? WHERE user_name = ?",
                 (
-                    str(user.name) if user.name else None,
+                    int(user.is_ui_user),
+                    int(user.is_service_user),
+                    str(user.name) if user.name else None,#is_ui_user, is_service_user
                     password,
                     int(user.locked),
                     int(user.active),
                     int(user.requires_password_update),
-                    user_name,
-                ),
+                    user_name
+                )
             )
             
             self.__connection.execute(
