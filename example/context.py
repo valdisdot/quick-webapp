@@ -84,19 +84,19 @@ def user_service() -> UserService:
 
     if not data_source.is_user_exist("user"):
         data_source.create_user(
-            User("user", ["user"]),
+            User("user", True, True, ["user"]),
             "11111"
         )
 
         data_source.create_user(
-            User("admin", ["user", "admin"]),
+            User("admin", True, True, ["user", "admin"]),
             "11111"
         )
     
     if not data_source.is_user_exist("test_user_1"):
         for i in range(50):
             data_source.create_user(
-                User(f"test_user_{i}", ["user"]),
+                User(f"test_user_{i}", True, False, ["user"]),
                 "11111"
             )
 
