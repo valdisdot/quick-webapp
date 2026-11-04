@@ -9,8 +9,8 @@ class User:
 
     def __init__(self, 
                  user_name: str,
-                 is_ui_user,
-                 is_service_user,
+                 is_ui_user: bool,
+                 is_service_user: bool,
                  roles: list[str],
                  name: str | None = None,
                  locked: bool = False,
