@@ -39,6 +39,8 @@ class SecurityUIConfig:
 
         # Create user form
         create_user_title: str = "Create a user",
+        is_ui_user_label: str = "UI user",
+        is_service_user_label: str = "Service user",
         roles_label: str = "Roles",
         is_active_label: str = "Active",
         is_locked_label: str = "Locked",
@@ -63,6 +65,8 @@ class SecurityUIConfig:
         search_by_user_name_button: str = "Search",
         user_name_column_label: str = "username",
         name_column_label: str = "Name",
+        is_ui_user_column_label: str = "Regular user?",
+        is_service_user_column_label: str = "Service user?",
         roles_column_label: str = "Roles",
         locked_column_label: str = "Is locked?",
         active_column_label: str = "Is active?",
@@ -103,6 +107,8 @@ class SecurityUIConfig:
 
         # Create user form
         self.__create_user_title = create_user_title
+        self.__is_ui_user_label = is_ui_user_label
+        self.__is_service_user_label = is_service_user_label
         self.__roles_label = roles_label
         self.__is_active_label = is_active_label
         self.__is_locked_label = is_locked_label
@@ -128,6 +134,8 @@ class SecurityUIConfig:
         self.__search_by_user_name_button = search_by_user_name_button
         self.__user_name_column_label = user_name_column_label
         self.__name_column_label = name_column_label
+        self.__ui_user_column_label = is_ui_user_column_label
+        self.__service_user_column_label = is_service_user_column_label
         self.__roles_column_label = roles_column_label
         self.__locked_column_label = locked_column_label
         self.__active_column_label = active_column_label
@@ -217,6 +225,14 @@ class SecurityUIConfig:
         return self.__create_user_title
 
     @property
+    def is_ui_user_label(self) -> str:
+        return self.__is_ui_user_label
+
+    @property
+    def is_service_user_label(self) -> str:
+        return self.__is_service_user_label
+
+    @property
     def roles_label(self) -> str:
         return self.__roles_label
 
@@ -293,6 +309,14 @@ class SecurityUIConfig:
     @property
     def name_column_label(self) -> str:
         return self.__name_column_label
+
+    @property
+    def ui_user_column_label(self) -> str:
+        return self.__ui_user_column_label
+
+    @property
+    def service_user_column_label(self) -> str:
+        return self.__service_user_column_label
 
     @property
     def roles_column_label(self) -> str:
@@ -426,8 +450,25 @@ def render_login_page(
         else:
             st.switch_page(logged_in_page_path)
 
-def __call_edit_user_form(user: User, user_service: UserService, page_context: dict[str, Any]):
-    edit_user_form(user.user_name, user_service)
+def __call_edit_user_form(user: User, user_service: UserService, page_context: dict[str, Any], security_ui_config: SecurityUIConfig, key_suffix: str):
+    edit_user_form(
+        user.user_name, 
+        user_service,
+        security_ui_config.edit_user_title,
+        security_ui_config.full_name_label,
+        security_ui_config.password_label,
+        security_ui_config.confirm_password_label,
+        security_ui_config.roles_label,
+        security_ui_config.is_ui_user_label,
+        security_ui_config.is_service_user_label,
+        security_ui_config.is_active_label,
+        security_ui_config.is_locked_label,
+        security_ui_config.is_password_set_required_label,
+        security_ui_config.save_button_label,
+        security_ui_config.exception_text_mapper,
+        security_ui_config.passwords_do_not_match_text,
+        key_suffix
+    )
     page_context["do_search"] = True
 
 def __render_user_roles(user: User):
@@ -435,10 +476,12 @@ def __render_user_roles(user: User):
         for role in user.roles:
             st.write(f':color[{role}]{{foreground="#f5fffa" background="#464bb4"}}')
 
-def __setup_render_all_users_management_page(security_ui_config: SecurityUIConfig, user_service: UserService, page_context: dict[str, Any]):
+def __setup_render_all_users_management_page(security_ui_config: SecurityUIConfig, user_service: UserService, page_context: dict[str, Any], key_suffix: str):
     page_context["data_mappers"] = {
         security_ui_config.user_name_column_label: lambda user: st.write(f"`{user.user_name}`"),
         security_ui_config.name_column_label: lambda user: st.write(f"**{user.name}**" if user.name else ':color[Not set]{foreground="#6b6b6b" background="#e3e3e3"}'),
+        security_ui_config.ui_user_column_label: lambda user: st.write(security_ui_config.true_label if user.is_ui_user else security_ui_config.false_label),
+        security_ui_config.service_user_column_label: lambda user: st.write(security_ui_config.true_label if user.is_service_user else security_ui_config.false_label),
         security_ui_config.roles_column_label: __render_user_roles,
         security_ui_config.active_column_label: lambda user: st.write(security_ui_config.true_label if user.active else security_ui_config.false_label),
         security_ui_config.locked_column_label: lambda user: st.write(security_ui_config.true_label if user.locked else security_ui_config.false_label),
@@ -446,7 +489,7 @@ def __setup_render_all_users_management_page(security_ui_config: SecurityUIConfi
     }
 
     page_context["action_mappers"] = {
-        security_ui_config.edit_user_button_label: lambda user: __call_edit_user_form(user, user_service, page_context)
+        security_ui_config.edit_user_button_label: lambda user: __call_edit_user_form(user, user_service, page_context, security_ui_config, key_suffix)
     }
 
     page_context["q_user_name"] = ""
@@ -468,7 +511,7 @@ def render_all_users_management_page(
     key = f"render_all_users_management_page_{key}" if key else "render_all_users_management_page"
     if not key in context:
         page_context = {}
-        __setup_render_all_users_management_page(security_ui_config, user_service, page_context)
+        __setup_render_all_users_management_page(security_ui_config, user_service, page_context, key)
         context[key] = page_context
     else:
         page_context = context[key]

@@ -38,6 +38,10 @@ class InvalidUserSessionException(UserLayerException):
     """Exception-indicator of user's session is invalid."""
     pass
 
+class UserNotAllowedException(UserLayerException):
+    """Exception-indicator of user is not allowed to use a service/authentication method."""
+    pass
+
 class Session:
     """
     Common session class.
@@ -242,6 +246,8 @@ class UserService:
             self.__check_user_credentials(user_name, password)
             user = self.__user_data_source.get_user(user_name)
 
+            if not user.is_ui_user:
+                raise UserNotAllowedException(f"User '{user_name}' is not allowed to login")
             if not user.active:
                 raise UserNotActiveException(f"User '{user_name}' is not active")
             if user.locked:
@@ -529,6 +535,13 @@ class UserService:
 
         self.__check_user_credentials(user_name, password)
         user = self.fetch_user(user_name)
+
+        if not user.is_service_user:
+            raise UserNotAllowedException(f"User '{user_name}' is not allowed to generate token")
+        if not user.active:
+            raise UserNotActiveException(f"User '{user_name}' is not active")
+        if user.locked:
+            raise UserLockedException(f"User '{user_name}' is locked")
 
         with self.__token_sessions_lock:
             expires_at = time.time() + self.__session_lifespan_seconds

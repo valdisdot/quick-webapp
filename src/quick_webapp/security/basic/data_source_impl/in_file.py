@@ -1,4 +1,5 @@
 
+from typing import Any
 import json
 import os
 from quick_webapp.security.basic.user import User
@@ -44,7 +45,7 @@ class InFileUserDataSource(UserDataSource):
         except Exception as e:
             raise UserDataSourceException("Failed to initialize file-based user storage") from e
 
-    def __load_users(self) -> list[dict]:
+    def __load_user_records(self) -> list[dict]:
         if not os.path.exists(self.__users_file):
             return []
         try:
@@ -58,32 +59,72 @@ class InFileUserDataSource(UserDataSource):
         except Exception as e:
             raise UserDataSourceException("Unexpected error while loading users") from e
 
-    def __save_users(self, users: list[dict]):
+    def __load_user_record(self, user_name: str) -> dict:
+        users = self.__load_user_records()
+        for user in users:
+            if user.get("user_name") == user_name:
+                return user
+        raise UserDataSourceException("User does not exist")
+
+    def __write_user_records(self, records: list[dict]):
         try:
             with open(self.__users_file, "w", encoding="utf-8") as f:
-                json.dump(users, f, indent=1)
+                json.dump(records, f, indent=1)
         except Exception as e:
             raise UserDataSourceException("Unexpected error while saving users") from e
+
+    def __save_user_record(self, record: dict):
+        user_name = record.get("user_name")
+        if not user_name:
+            raise UserDataSourceException("User record missing user_name")
+        users = self.__load_user_records()
+        updated = False
+        for i, user in enumerate(users):
+            if user.get("user_name") == user_name:
+                users[i] = record
+                updated = True
+                break
+        if not updated:
+            users.append(record)
+        self.__write_user_records(users)
+
+    @staticmethod
+    def __serialize_user(user: User, user_name: str, password: str) -> dict[str, Any]:
+        return {
+            "user_name": user_name,
+            "is_ui_user": user.is_ui_user,
+            "is_service_user": user.is_service_user,
+            "name": user.name,
+            "password": password,
+            "locked": user.locked,
+            "active": user.active,
+            "requires_password_update": user.requires_password_update,
+            "roles": user.roles
+        }
+
+    @staticmethod
+    def __deserialize_user(record: dict[str, Any]) -> User:
+        return User(
+            user_name=record.get("user_name"),
+            is_ui_user=record.get("is_ui_user"),
+            is_service_user=record.get("is_service_user"),
+            roles=record.get("roles"),
+            name=record.get("name"),
+            locked=record.get("locked"),
+            active=record.get("active"),
+            requires_password_update=record.get("requires_password_update")
+        )
 
     def create_user(self, user: User, password: str) -> User:
         try:
             user_name = str(user.user_name)
-            users = self.__load_users()
+            user_records = self.__load_user_records()
 
-            if any(u.get("user_name") == user_name for u in users):
+            if any(record.get("user_name") == user_name for record in user_records):
                 raise UserDataSourceException("User already exists")
 
-            record = {
-                "user_name": user_name,
-                "name": str(user.name) if getattr(user, "name", None) else None,
-                "password": str(password),
-                "locked": bool(getattr(user, "locked", False)),
-                "active": bool(getattr(user, "active", True)),
-                "requires_password_update": bool(getattr(user, "requires_password_update", False)),
-                "roles": list(getattr(user, "roles", [])),
-            }
-            users.append(record)
-            self.__save_users(users)
+            user_records.append(self.__serialize_user(user, user_name, str(password)))
+            self.__write_user_records(user_records)
 
             return user
         except UserDataSourceException as e:
@@ -94,32 +135,9 @@ class InFileUserDataSource(UserDataSource):
     def is_user_exist(self, user_name: str) -> bool:
         try:
             user_name = str(user_name)
-            users = self.__load_users()
-            return any(user.get("user_name") == user_name for user in users)
+            return any(user_record.get("user_name") == user_name for user_record in self.__load_user_records())
         except Exception as e:
             raise UserDataSourceException("Unexpected error while checking a username") from e
-
-    def __load_user_record(self, user_name: str) -> dict:
-        users = self.__load_users()
-        for user in users:
-            if user.get("user_name") == user_name:
-                return user
-        raise UserDataSourceException("User does not exist")
-
-    def __save_user_record(self, record: dict):
-        user_name = record.get("user_name")
-        if not user_name:
-            raise UserDataSourceException("User record missing user_name")
-        users = self.__load_users()
-        updated = False
-        for i, user in enumerate(users):
-            if user.get("user_name") == user_name:
-                users[i] = record
-                updated = True
-                break
-        if not updated:
-            users.append(record)
-        self.__save_users(users)
 
     def get_user_password(self, user_name: str) -> str:
         try:
@@ -134,15 +152,7 @@ class InFileUserDataSource(UserDataSource):
     def get_user(self, user_name: str) -> User | None:
         try:
             user_name = str(user_name)
-            record = self.__load_user_record(user_name)
-            return User(
-                user_name=record.get("user_name"),
-                roles=record.get("roles", []),
-                name=record.get("name"),
-                locked=bool(record.get("locked", False)),
-                active=bool(record.get("active", True)),
-                requires_password_update=bool(record.get("requires_password_update", False)),
-            )
+            return self.__deserialize_user(self.__load_user_record(user_name))
         except UserDataSourceException as e:
             raise e
         except Exception as e:
@@ -150,7 +160,7 @@ class InFileUserDataSource(UserDataSource):
 
     def get_users(self, user_name_part: str, offset: int, limit: int, excluding_user_names: list[str] | None = None) -> list[User]:
         try:
-            users = self.__load_users()
+            users = self.__load_user_records()
             part = (user_name_part or "").lower()
 
             if excluding_user_names is None:
@@ -167,19 +177,10 @@ class InFileUserDataSource(UserDataSource):
 
             result: list[User] = []
             for record in window:
-                result.append(
-                    User(
-                        user_name=record.get("user_name"),
-                        roles=record.get("roles", []),
-                        name=record.get("name"),
-                        locked=bool(record.get("locked", False)),
-                        active=bool(record.get("active", True)),
-                        requires_password_update=bool(record.get("requires_password_update", False)),
-                    )
-                )
+                result.append(self.__deserialize_user(record))
 
             return result
-
+        
         except UserDataSourceException as e:
             raise e
         except Exception as e:
@@ -201,11 +202,13 @@ class InFileUserDataSource(UserDataSource):
             user_name = str(user.user_name)
             record = self.__load_user_record(user_name)
 
-            record["name"] = str(user.name) if getattr(user, "name", None) else None
-            record["locked"] = bool(getattr(user, "locked", False))
-            record["active"] = bool(getattr(user, "active", True))
-            record["requires_password_update"] = bool(getattr(user, "requires_password_update", False))
-            record["roles"] = list(getattr(user, "roles", []))
+            record["is_ui_user"] = user.is_ui_user
+            record["is_service_user"] = user.is_service_user
+            record["name"] = user.name
+            record["locked"] = user.locked
+            record["active"] = user.active
+            record["requires_password_update"] = user.requires_password_update
+            record["roles"] = user.roles
 
             self.__save_user_record(record)
             return user
@@ -219,12 +222,14 @@ class InFileUserDataSource(UserDataSource):
             user_name = str(user.user_name)
             record = self.__load_user_record(user_name)
 
-            record["name"] = str(user.name) if getattr(user, "name", None) else None
-            record["password"] = str(password)
-            record["locked"] = bool(getattr(user, "locked", False))
-            record["active"] = bool(getattr(user, "active", True))
-            record["requires_password_update"] = bool(getattr(user, "requires_password_update", False))
-            record["roles"] = list(getattr(user, "roles", []))
+            record["is_ui_user"] = user.is_ui_user
+            record["is_service_user"] = user.is_service_user
+            record["name"] = user.name
+            record["password"] = password
+            record["locked"] = user.locked
+            record["active"] = user.active
+            record["requires_password_update"] = user.requires_password_update
+            record["roles"] = user.roles
 
             self.__save_user_record(record)
             return user

@@ -9,6 +9,8 @@ class User:
 
     def __init__(self, 
                  user_name: str,
+                 is_ui_user: bool,
+                 is_service_user: bool,
                  roles: list[str],
                  name: str | None = None,
                  locked: bool = False,
@@ -16,6 +18,8 @@ class User:
                  requires_password_update: bool = False
     ):
         self.__user_name = user_name.strip() if user_name is not None and isinstance(user_name, str) else None
+        self.__is_ui_user = bool(is_ui_user)
+        self.__is_service_user = bool(is_service_user)
         self.__roles = roles.copy() if roles and isinstance(roles, Sequence) else []
         self.__name = str(name) if name is not None and isinstance(name, str) else None
         self.__locked = bool(locked)
@@ -31,6 +35,22 @@ class User:
         """
 
         return self.__user_name
+
+    @property
+    def is_ui_user(self) -> bool:
+        """
+        Is user allowed to login flag.
+        """
+
+        return self.__is_ui_user
+
+    @property
+    def is_service_user(self) -> bool:
+        """
+        Is user allowed to use services (APIs) flag.
+        """
+
+        return self.__is_service_user
 
     @property
     def name(self) -> str:

@@ -117,7 +117,7 @@ def registration_form(
                         elif len(user_name) and len(password):
                             try:
                                 user_service.register_user(
-                                    User(user_name, roles, full_name, False, default_active_status, False),
+                                    User(user_name, True, False, roles, full_name, False, default_active_status, False),
                                     password
                                 )
                                 ui.delete_cookie(registration_key)
@@ -196,12 +196,15 @@ def create_user_form(
     password_label: str = "Password",
     confirm_password_label: str = "Confirm password",
     roles_label: str = "Roles",
+    is_ui_user_label: str = "UI user",
+    is_service_user_label: str = "Service user",
     is_active_label: str = "Active",
     is_locked_label: str = "Locked",
     is_password_set_required_label: str = "Require password set",
     create_button_label: str = "Create",
     exception_text_mapper: Callable[[Exception], str] = lambda exception: str(exception),
     passwords_do_not_match_text: str = "Passwords do not match!",
+    key_suffix: str | None = None
 ):
     """
     Displays a form to create a user.
@@ -210,16 +213,25 @@ def create_user_form(
 
     @st.dialog(title, width="small", dismissible=True)
     def dialog():
-        user_name = st.text_input(user_name_label)
-        full_name = (
-            st.text_input(full_name_label) if full_name_label is not None else None
-        )
-        password = st.text_input(password_label, type="password")
-        confirm_password = st.text_input(confirm_password_label, type="password")
-        roles = st.multiselect(roles_label, user_service.fetch_roles())
-        is_active = st.toggle(is_active_label, True)
-        is_locked = st.toggle(is_locked_label)
-        is_password_set_required = st.toggle(is_password_set_required_label, True)
+        key = f"{key_suffix}_create_user_form" if key_suffix else "create_user_form"
+        user_name = st.text_input(user_name_label, key=f"{key}_user_name")
+        name = st.text_input(full_name_label, key=f"{key}_name") if full_name_label is not None else None
+
+        with st.container(
+            width="stretch",
+            horizontal=True,
+            horizontal_alignment="left",
+            vertical_alignment="center"
+        ):
+            is_ui_user = st.toggle(is_ui_user_label, True, key=f"{key}_is_ui_user")
+            is_service_user = st.toggle(is_service_user_label, key=f"{key}_is_service_user")
+        
+        password = st.text_input(password_label, type="password", key=f"{key}_password")
+        confirm_password = st.text_input(confirm_password_label, type="password", key=f"{key}_confirm_password")
+        roles = st.multiselect(roles_label, user_service.fetch_roles(), key=f"{key}_roles")
+        is_active = st.toggle(is_active_label, True, key=f"{key}_is_active")
+        is_locked = st.toggle(is_locked_label, key=f"{key}_is_locked")
+        is_password_set_required = st.toggle(is_password_set_required_label, True, key=f"{key}_password_set_required")
 
         error = None
 
@@ -229,10 +241,10 @@ def create_user_form(
             horizontal_alignment="right",
             vertical_alignment="center",
         ):
-            if st.button(create_button_label, type="primary"):
+            if st.button(create_button_label, type="primary", key=f"{key}_create"):
                 if user_name and password and confirm_password:
                     user_name = user_name.strip()
-                    full_name = full_name.strip() if full_name is not None else None
+                    name = name.strip() if name is not None else None
                     password = password.strip()
 
                     if password != confirm_password.strip():
@@ -242,13 +254,15 @@ def create_user_form(
                             user_service.register_user(
                                 User(
                                     user_name,
+                                    is_ui_user,
+                                    is_service_user,
                                     roles,
-                                    full_name,
+                                    name,
                                     is_locked,
                                     is_active,
                                     is_password_set_required,
                                 ),
-                                password,
+                                password
                             )
                             st.rerun()
 
@@ -268,12 +282,15 @@ def edit_user_form(
     password_label: str = "Password",
     confirm_password_label: str = "Confirm password",
     roles_label: str = "Roles",
+    is_ui_user_label: str = "UI user",
+    is_service_user_label: str = "Service user",
     is_active_label: str = "Active",
     is_locked_label: str = "Locked",
     is_password_set_required_label: str = "Require password set",
     save_button_label: str = "Save",
     exception_text_mapper: Callable[[Exception], str] = lambda exception: str(exception),
     passwords_do_not_match_text: str = "Passwords do not match!",
+    key_suffix: str | None = None
 ):
     """
     Displays a form to edit a user.
@@ -282,22 +299,26 @@ def edit_user_form(
 
     @st.dialog(title, width="small", dismissible=True)
     def dialog(user: User):
-        st.text_input(
-            user_name, user_name, label_visibility="hidden", disabled=True
-        )
-        full_name = (
-            st.text_input(full_name_label, user.name)
-            if full_name_label is not None
-            else None
-        )
-        password = st.text_input(password_label, type="password")
-        confirm_password = st.text_input(confirm_password_label, type="password")
-        roles = st.multiselect(roles_label, user_service.fetch_roles(), user.roles)
-        is_active = st.toggle(is_active_label, user.active)
-        is_locked = st.toggle(is_locked_label, user.locked)
-        is_password_set_required = st.toggle(
-            is_password_set_required_label, user.requires_password_update
-        )
+        key = f"{key_suffix}_edit_user_form" if key_suffix else "edit_user_form"
+
+        st.text_input(user_name, user_name, label_visibility="hidden", disabled=True, key=f"{key}_user_name")
+        name = (st.text_input(full_name_label, user.name, key=f"{key}_name") if full_name_label is not None else None)
+
+        with st.container(
+            width="stretch",
+            horizontal=True,
+            horizontal_alignment="left",
+            vertical_alignment="center"
+        ):
+            is_ui_user = st.toggle(is_ui_user_label, user.is_ui_user, key=f"{key}_is_ui_user")
+            is_service_user = st.toggle(is_service_user_label, user.is_service_user, key=f"{key}_is_service_user")
+
+        password = st.text_input(password_label, type="password", key=f"{key}_password")
+        confirm_password = st.text_input(confirm_password_label, type="password", key=f"{key}_confirm_password")
+        roles = st.multiselect(roles_label, user_service.fetch_roles(), user.roles, key=f"{key}_roles")
+        is_active = st.toggle(is_active_label, user.active, key=f"{key}_is_active")
+        is_locked = st.toggle(is_locked_label, user.locked, key=f"{key}_is_locked")
+        is_password_set_required = st.toggle(is_password_set_required_label, user.requires_password_update, key=f"{key}_password_set_required")
 
         error = None
 
@@ -305,14 +326,10 @@ def edit_user_form(
             width="stretch",
             horizontal=True,
             horizontal_alignment="right",
-            vertical_alignment="center",
+            vertical_alignment="center"
         ):
-            if st.button(save_button_label, type="primary"):
-                full_name = (
-                    None
-                    if (full_name is None or len(full_name.strip()) == 0)
-                    else full_name
-                )
+            if st.button(save_button_label, type="primary", key=f"{key}_save"):
+                name = None if name is None or len(name.strip()) == 0 else name
                 do_pass = True
 
                 if password and password.strip():
@@ -328,13 +345,15 @@ def edit_user_form(
                         user_service.update_user(
                             User(
                                 user_name,
+                                is_ui_user,
+                                is_service_user,
                                 roles,
-                                full_name if full_name else user.name,
+                                name if name else user.name,
                                 is_locked,
                                 is_active,
                                 is_password_set_required,
                             ),
-                            password,
+                            password
                         )
                         st.rerun()
 
@@ -343,42 +362,5 @@ def edit_user_form(
 
         if error:
             st.error(error)
-
-    dialog(__fetch_user(user_name, user_service))
-
-def manage_user_form(
-    user_name: str,
-    user_service: UserService,
-    title: str = "Manage a user",
-    active_label: str = "Active",
-    not_active_label: str = "Not active",
-    sessions_label: str = "Sessions",
-    lock_label: str = "Lock",
-    unlock_label: str = "Unlock",
-    logout_label: str = "Logout"
-):
-    """
-    Displays a form to manage a user (lock and close sessions).
-    Reruns Streamlit script if saving is successful.
-    """
-
-    @st.dialog(title, width="small", dismissible=True)
-    def dialog(user: User):
-        with st.container(horizontal=True):
-            st.write(f"**{user.user_name}**")
-            if user.name:
-                st.write(f"({user.name})")
-        
-        st.badge(active_label if user.active else not_active_label, color="green" if user.active else "gray")
-        st.write(f"{sessions_label}: {len(user_service.get_user_sessions(user_name))}")
-
-        with st.container(horizontal=True):
-            if st.button(unlock_label if user.locked else lock_label, type="secondary" if user.locked else "primary"):
-                user_service.update_user_lock(user_name, not user.locked)
-                user = __fetch_user(user_name, user_service)
-            
-            if st.button(logout_label, type="primary"):
-                user_service.close_all_sessions(user.user_name)
-                user = __fetch_user(user_name, user_service)
 
     dialog(__fetch_user(user_name, user_service))
