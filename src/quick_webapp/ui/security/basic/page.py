@@ -30,6 +30,7 @@ class SecurityUIConfig:
         confirm_password_label: str = "Confirm password",
         register_button_label: str = "Register",
         registration_login_button_label: str = "Login",
+        registration_help_text: str | None = None,
 
         # Set password form
         set_password_title: str = "Set a password",
@@ -74,10 +75,11 @@ class SecurityUIConfig:
         edit_user_button_label: str = "Edit",
         logout_user_button_label: str = "Logout",
         no_users_found: str = "No users were found...",
+        next_page_button_label: str = "Next >",
+        back_page_button_label: str = "< Back",
 
         # Shared texts
         help_badge: str = "🛟",
-        help_text: str | None = None,
         exception_text_mapper: Callable[[Exception], str] = lambda exception: str(exception),
         passwords_do_not_match_text: str = "Passwords do not match!",
         true_label: str = "✅",
@@ -98,6 +100,7 @@ class SecurityUIConfig:
         self.__confirm_password_label = confirm_password_label
         self.__register_button_label = register_button_label
         self.__registration_login_button_label = registration_login_button_label
+        self.__registration_help_text = registration_help_text
 
         # Set password form
         self.__set_password_title = set_password_title
@@ -128,6 +131,8 @@ class SecurityUIConfig:
         self.__unlock_label = unlock_label
         self.__logout_label = logout_label
         self.__no_users_found = no_users_found
+        self.__next_page_button_label = next_page_button_label
+        self.__back_page_button_label = back_page_button_label
 
         # Manage users pages
         self.__search_by_user_name_text_field_label = search_by_user_name_text_field_label
@@ -145,7 +150,6 @@ class SecurityUIConfig:
 
         # Shared texts
         self.__help_badge = help_badge
-        self.__help_text = help_text
         self.__exception_text_mapper = exception_text_mapper
         self.__passwords_do_not_match_text = passwords_do_not_match_text
         self.__true_label = true_label
@@ -199,6 +203,10 @@ class SecurityUIConfig:
     @property
     def registration_login_button_label(self) -> str:
         return self.__registration_login_button_label
+
+    @property
+    def registration_help_text(self) -> str | None:
+        return self.__registration_help_text
 
     # Set password form
 
@@ -346,15 +354,19 @@ class SecurityUIConfig:
     def no_users_found(self) -> str:
         return self.__no_users_found
 
+    @property
+    def next_page_button_label(self) -> str:
+        return self.__next_page_button_label
+    
+    @property
+    def back_page_button_label(self) -> str:
+        return self.__back_page_button_label
+
     # Shared texts
 
     @property
     def help_badge(self) -> str:
         return self.__help_badge
-
-    @property
-    def help_text(self) -> str | None:
-        return self.__help_text
 
     @property
     def exception_text_mapper(self) -> Callable[[Exception], str]:
@@ -382,10 +394,10 @@ def render_login_page(
     user_service: UserService,
     session_id_key: str,
     logged_in_page_path: str | Path | st.Page,
-    registration_key: str | None,
+    registration_key: str | None = None,
     registration_default_roles: str | Iterable[str] | None = None,
     registration_default_active_status: bool | None = None,
-    security_ui_config: SecurityUIConfig = SecurityUIConfig(),
+    security_ui_config: SecurityUIConfig = SecurityUIConfig()
 ):
     """
     Renders a default login page with login_form, registration_form, set_password_form from ui.security.basic.form package.
@@ -416,7 +428,7 @@ def render_login_page(
                 security_ui_config.register_button_label,
                 security_ui_config.login_button_label,
                 security_ui_config.help_badge,
-                security_ui_config.help_text,
+                security_ui_config.registration_help_text,
                 security_ui_config.exception_text_mapper,
                 security_ui_config.passwords_do_not_match_text
             )
@@ -430,7 +442,7 @@ def render_login_page(
                 security_ui_config.password_label,
                 security_ui_config.login_button_label,
                 security_ui_config.register_button_label,
-                security_ui_config.help_text,
+                security_ui_config.login_help_text,
                 security_ui_config.help_badge,
                 security_ui_config.exception_text_mapper
             )
@@ -474,11 +486,11 @@ def __call_edit_user_form(user: User, user_service: UserService, page_context: d
 def __render_user_roles(user: User):
     with st.container(horizontal=True, gap="xxsmall"):
         for role in user.roles:
-            st.write(f':color[{role}]{{foreground="#f5fffa" background="#464bb4"}}')
+            st.write(f':color[{role}]{{foreground="#f8f5f4" background="#6569C3"}}')
 
-def __setup_render_all_users_management_page(security_ui_config: SecurityUIConfig, user_service: UserService, page_context: dict[str, Any], key_suffix: str):
+def __setup_render_all_users_management_page(security_ui_config: SecurityUIConfig, user_service: UserService, page_context: dict[str, Any], column_ratio_spec: list[int], key_suffix: str):
     page_context["data_mappers"] = {
-        security_ui_config.user_name_column_label: lambda user: st.write(f"`{user.user_name}`"),
+        security_ui_config.user_name_column_label: lambda user: st.write(f"{user.user_name}"),
         security_ui_config.name_column_label: lambda user: st.write(f"**{user.name}**" if user.name else ':color[Not set]{foreground="#6b6b6b" background="#e3e3e3"}'),
         security_ui_config.ui_user_column_label: lambda user: st.write(security_ui_config.true_label if user.is_ui_user else security_ui_config.false_label),
         security_ui_config.service_user_column_label: lambda user: st.write(security_ui_config.true_label if user.is_service_user else security_ui_config.false_label),
@@ -492,6 +504,7 @@ def __setup_render_all_users_management_page(security_ui_config: SecurityUIConfi
         security_ui_config.edit_user_button_label: lambda user: __call_edit_user_form(user, user_service, page_context, security_ui_config, key_suffix)
     }
 
+    page_context["column_ratio_spec"] = column_ratio_spec
     page_context["q_user_name"] = ""
     page_context["users"] = None
     page_context["do_search"] = None
@@ -507,11 +520,21 @@ def render_all_users_management_page(
     security_ui_config: SecurityUIConfig = SecurityUIConfig(),
     width: int | Literal["stretch", "content"] = "stretch",
     key: str | None = None,
+    user_name_column_x = 1,
+    name_column_x = 1.5,
+    is_ui_user_column_x = 0.5,
+    is_service_user_column_x = 0.5,
+    roles_column_x = 2.5,
+    active_column_x = 0.5,
+    locked_column_x = 0.5,
+    password_set_required_column_x = 0.5,
+    edit_button_column_x = 0.5
 ):
+    
     key = f"render_all_users_management_page_{key}" if key else "render_all_users_management_page"
     if not key in context:
         page_context = {}
-        __setup_render_all_users_management_page(security_ui_config, user_service, page_context, key)
+        __setup_render_all_users_management_page(security_ui_config, user_service, page_context, [user_name_column_x, name_column_x, is_ui_user_column_x, is_service_user_column_x, roles_column_x, active_column_x, locked_column_x, password_set_required_column_x, edit_button_column_x], key)
         context[key] = page_context
     else:
         page_context = context[key]
@@ -541,19 +564,19 @@ def render_all_users_management_page(
                 page_context["data_mappers"],
                 page_context["action_mappers"],
                 container_width="stretch",
-                column_ratio_spec=[1, 2, 0.5, 0.5, 2, 0.5, 0.5, 0.5, 0.5],
+                column_ratio_spec=page_context["column_ratio_spec"],
                 key_suffix=f"{key}_users"
             )
 
             with st.container(horizontal=True, gap="xxsmall"):
                 offset = page_context["offset"]
-                if offset > 0 and st.button("<"):
+                if offset > 0 and st.button(security_ui_config.back_page_button_label, key=f"{key}_back_page"):
                     offset = offset - users_per_page
                     page_context["offset"] = 0 if offset < 0 else offset
                     page_context["do_search"] = True
                     st.rerun(scope="fragment")
 
-                if page_context["has_more"] and st.button(">"):
+                if page_context["has_more"] and st.button(security_ui_config.next_page_button_label, key=f"{key}_next_page"):
                     page_context["offset"] = offset + users_per_page
                     page_context["do_search"] = True
                     st.rerun(scope="fragment")

@@ -30,6 +30,7 @@ def login_form(
 
         error = None
 
+        session_id = None
         with st.container(width="stretch", horizontal=True):
             with st.container(width="stretch", horizontal=True, horizontal_alignment="left", vertical_alignment="center"):
                 if help_text and len(help_text):
@@ -39,8 +40,6 @@ def login_form(
                     if st.button(registration_button_label, type="secondary"):
                         ui.write_cookie(registration_key, "true", user_service.session_lifespan_seconds)
                         ui.restart_browser_window()
-                else:
-                    st.write("")
 
             with st.container(width="content", horizontal=True, horizontal_alignment="right", vertical_alignment="center"):
                 if st.button(login_button_label, type="primary"):
@@ -51,12 +50,14 @@ def login_form(
                         if len(user_name) and len(password):
                             try:
                                 session_id = user_service.login(user_name, password, ui.get_browser_locate(), ui.get_browser_timezone())
-                                ui.write_cookie(session_id_key, session_id, user_service.session_lifespan_seconds)
-                                ui.delete_cookie(registration_key)
-                                ui.restart_browser_window()
         
                             except Exception as e:
                                 error = e
+
+        if session_id:
+            ui.write_cookie(session_id_key, session_id, user_service.session_lifespan_seconds)
+            ui.delete_cookie(registration_key)
+            ui.restart_browser_window()
         
         if error:
             st.error(exception_text_mapper(error))
@@ -88,7 +89,7 @@ def registration_form(
 
     @st.dialog(title, width="small", dismissible=False)
     def dialog():
-        roles = [] if not default_roles else ([str(default_role) for default_role in default_roles] if isinstance(Iterable, default_roles) else [str(default_roles)])
+        roles = [] if not default_roles else ([str(default_role) for default_role in default_roles] if isinstance(default_roles, Iterable) else [str(default_roles)])
         user_name = st.text_input(user_name_label)
         full_name = st.text_input(full_name_label) if full_name_label is not None else None
         password = st.text_input(password_label, type="password")
