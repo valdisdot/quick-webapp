@@ -522,6 +522,10 @@ class WebApplication:
                     width: 50px;
                     height: 40px;
                 }}
+
+                [data-testid="stElementContainer"]:has(.js-executor) {{
+                    display: none !important;
+                }}
             """
 
     @classmethod

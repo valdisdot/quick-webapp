@@ -3,18 +3,30 @@ from uuid import uuid4
 import streamlit as st
 
 def execute_javascript(script: str):
-    """
-    Adds JavaScript to the page.
+    wrapped_script = f"""
+    <div class="js-executor">
+        <script>
+            (function() {{
+                const currentScript = document.currentScript;
+                const container = currentScript.closest(
+                    '[data-testid="stElementContainer"]'
+                );
+
+                if (container) {{
+                    container.style.display = 'none';
+                }}
+
+                {script}
+            }})();
+        </script>
+    </div>
     """
 
-    wrapped_script = f"""
-    <script>
-        (function() {{
-            {script}
-        }})();
-    </script>
-    """
-    st.components.v1.html(wrapped_script, height=0, width=0)
+    st.html(
+        wrapped_script,
+        width="content",
+        unsafe_allow_javascript=True
+    )
 
 def write_cookie(key: str, value: str, max_age_seconds: int):
     """
