@@ -576,6 +576,7 @@ def render_all_users_management_page(
             if st.button("Search", type="primary", key=f"{key}_search_by_user_name_button"):
                 page_context["offset"] = 0
                 page_context["do_search"] = True
+                st.rerun(scope="fragment")
 
         if users:
             action_table(
@@ -677,6 +678,7 @@ def render_current_users_management_page(
             if st.button("Search", type="primary", key=f"{key}_search_by_user_name_button"):
                 page_context["offset"] = 0
                 page_context["do_search"] = True
+                st.rerun(scope="fragment")
 
         session_infos = page_context.get("session_infos")
         if page_context["do_search"] or session_infos is None:

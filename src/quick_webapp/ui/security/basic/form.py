@@ -42,7 +42,7 @@ def login_form(
                         ui.restart_browser_window()
 
             with st.container(width="content", horizontal=True, horizontal_alignment="right", vertical_alignment="center"):
-                if st.button(login_button_label, type="primary"):
+                if st.button(login_button_label, type="primary", shortcut="Enter"):
                     if user_name and password:
                         user_name = user_name.strip()
                         password = password.strip()
@@ -102,12 +102,12 @@ def registration_form(
                 if help_text and len(help_text):
                     st.badge(label=help_badge, help=help_text)
 
-                if st.button(login_button_label, type="secondary"):
+                if st.button(login_button_label, type="secondary", shortcut="Esc"):
                     ui.delete_cookie(registration_key)
                     ui.restart_browser_window()
 
             with st.container(width="content", horizontal=True, horizontal_alignment="right", vertical_alignment="center"):
-                if st.button(register_button_label, type="primary"):
+                if st.button(register_button_label, type="primary", shortcut="Enter"):
                     if user_name and password and confirm_password:
                         user_name = user_name.strip()
                         full_name = full_name.strip() if full_name is not None else None
@@ -158,7 +158,7 @@ def set_password_form(
         error = None
 
         with st.container(width="stretch", horizontal=True, horizontal_alignment="right"):
-                if st.button(set_button_label, type="primary"):
+                if st.button(set_button_label, type="primary", shortcut="Enter"):
                     if password and new_password and confirm_new_password:
                         password = password.strip()
                         new_password = new_password.strip()
@@ -242,7 +242,7 @@ def create_user_form(
             horizontal_alignment="right",
             vertical_alignment="center",
         ):
-            if st.button(create_button_label, type="primary", key=f"{key}_create"):
+            if st.button(create_button_label, type="primary", key=f"{key}_create", shortcut="Enter"):
                 if user_name and password and confirm_password:
                     user_name = user_name.strip()
                     name = name.strip() if name is not None else None
@@ -330,7 +330,7 @@ def edit_user_form(
             horizontal_alignment="right",
             vertical_alignment="center"
         ):
-            if st.button(save_button_label, type="primary", key=f"{key}_save"):
+            if st.button(save_button_label, type="primary", key=f"{key}_save", shortcut="Enter"):
                 do_pass = True
 
                 if password and password.strip():
