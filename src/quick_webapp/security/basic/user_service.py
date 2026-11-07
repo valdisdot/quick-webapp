@@ -113,6 +113,54 @@ class UserSession(Session):
 
         not self.is_expired and self.__locale == locale and self.__timezone == timezone
 
+class SessionsInfo:
+    """
+    Session info record class.
+    """
+        
+    def __init__(self, user: User, user_sessions_lifespans: Iterable[Iterable[int, int]], token_sessions_lifespans: Iterable[Iterable[int, int]]):
+        self.__user = user
+        self.__user_sessions_lifespans = tuple(user_sessions_lifespans)
+        self.__token_sessions_lifespans = tuple(token_sessions_lifespans)
+
+    @property
+    def user(self) -> User:
+        """
+        User record of this session info.
+        """
+        return self.__user
+
+    @property
+    def user_sessions_lifespans(self) -> tuple[Iterable[int, int]]:
+        """
+        A list of users sessions lifespans in for on since - till POSIXes.
+        """
+
+        return self.__user_sessions_lifespans
+
+    @property
+    def user_sessions_count(self) -> int:
+        """
+        A count of user sessions.
+        """
+
+        return len(self.__user_sessions_lifespans)
+
+    @property
+    def token_sessions_lifespans(self) -> tuple[Iterable[int, int]]:
+        """
+        A list of token sessions lifespans in for on since - till POSIXes.
+        """
+
+        return self.__token_sessions_lifespans
+
+    @property
+    def token_sessions_count(self) -> int:
+        """
+        A count of token sessions.
+        """
+        return len(self.__token_sessions_lifespans)
+
 class UserService:
     """
     Service layer class to maintain user-password based authorization.
@@ -407,6 +455,10 @@ class UserService:
         limit: int = 10, 
         excluding_user_names: list[str] | str | None = None
     ) -> list[User]:
+        """
+        Fetches users by a user_name part in paging way.
+        """
+
         try:
             if offset < 0:
                 offset = 0
@@ -415,6 +467,9 @@ class UserService:
 
             if excluding_user_names:
                 excluding_user_names = [excluding_user_names] if isinstance(excluding_user_names, str) else excluding_user_names
+
+            if not user_name_part:
+                user_name_part = ""
 
             return self.__user_data_source.get_users(user_name_part, offset, limit, excluding_user_names)
             
@@ -479,55 +534,6 @@ class UserService:
         except UserDataSourceException as e:
             raise UserLayerException() from e
 
-    def get_user_sessions(self, user_name: str) -> list[tuple[int, int]]:
-        """
-        Returns a list of the user active session interval (timestamp tuple, since and till). Only not expired sessions included.
-        """
-
-        if user_name:
-            with self.__user_sessions_lock:
-                if user_name in self.__user_session_registry:
-                    res = []
-                    session_ids = self.__user_session_registry.get(user_name)
-                    for session_id in session_ids:
-                        session: UserSession = self.__user_sessions.get(session_id)
-                        if not session.is_expired:
-                            res.append((session.expires_at - self.__session_lifespan_seconds, session.expires_at))
-                    
-                    return res
-
-        return []
-
-    def get_all_user_sessions(self, excluding_user_names: list[str] | str | None) -> dict[User, list[tuple[int, int]]]:
-        """
-        Returns a list of all users active session interval (timestamp tuple, since and till). Only not expired sessions included.
-        """
-        
-        res = {}
-        if excluding_user_names is None:
-            excluding_user_names = []
-        elif isinstance(excluding_user_names, str):
-            excluding_user_names = [excluding_user_names]
-
-        with self.__user_sessions_lock:
-            for user_name, session_ids in self.__user_session_registry.items():
-                if user_name not in excluding_user_names:
-                    if session_ids:
-                        intervals = []
-                        
-                        for session_id in session_ids:
-                            session: UserSession = self.__user_sessions.get(session_id)
-                            if session and not session.is_expired:
-                                intervals.append((session.expires_at - self.__session_lifespan_seconds, session.expires_at))
-
-                        if intervals:
-                            try:
-                                res[self.__user_data_source.get_user(user_name)] = intervals
-                            except UserDataSourceException as e:
-                                raise UserLayerException() from e
-
-        return res
-
     def get_token(self, user_name: str, password: str) -> tuple[str, int]:
         """
         Authenticate user and generate an API token.
@@ -587,52 +593,81 @@ class UserService:
         
         return False
 
-    def get_token_sessions(self, user_name: str) -> list[tuple[int, int]]:
+    def get_user_sessions_info(self, user_name: str) -> SessionsInfo | None:
         """
-        Returns a list of the user active token session interval (timestamp tuple, since and till). Only not expired sessions included.
+        Returns a SessionsInfo of the user and token active session intervals (timestamp tuple, since and till). Only not expired sessions included.
         """
 
         if user_name:
+            user = None
+            user_sessions_lifespans = []
+            token_sessions_lifespans = []
+
+            with self.__user_sessions_lock:
+                if user_name in self.__user_session_registry:
+                    session_ids = self.__user_session_registry.get(user_name)
+                    for session_id in session_ids:
+                        session: UserSession = self.__user_sessions.get(session_id)
+                        if not session.is_expired:
+                            user_sessions_lifespans.append((session.expires_at - self.__session_lifespan_seconds, session.expires_at))
+                            user = session.user
+
             with self.__token_sessions_lock:
                 if user_name in self.__token_session_registry:
-                    res = []
                     tokens = self.__token_session_registry.get(user_name)
                     for token in tokens:
                         token_session: Session = self.__token_sessions.get(token)
                         if not token_session.is_expired:
-                            res.append((token_session.expires_at - self.__session_lifespan_seconds, token_session.expires_at))
-                    
-                    return res
+                            token_sessions_lifespans.append((token_session.expires_at - self.__session_lifespan_seconds, token_session.expires_at))
+                            user = token_session.user
 
-        return []
+            if not user:
+                raise UserLayerException("User does not have active sessions")
 
-    def get_all_token_sessions(self, excluding_user_names: list[str] | str | None) -> dict[User, list[tuple[int, int]]]:
-        """
-        Returns a list of all users active token session interval (timestamp tuple, since and till). Only not expired sessions included.
-        """
+            return SessionsInfo(user, user_sessions_lifespans, token_sessions_lifespans)
         
-        res = {}
+        raise UserLayerException("Username is empty")
+
+    def get_all_sessions_info(
+        self, 
+        user_name_part: str, 
+        offset: int = 0, 
+        limit: int = 10, 
+        excluding_user_names: list[str] | str | None = None
+    ) -> list[SessionsInfo]:
+        """
+        Returns a list of SessionsInfo of the user and token active session intervals (timestamp tuple, since and till). Only not expired sessions included.
+        """
+
+        user_names = []
+
+        with self.__user_sessions_lock:
+            user_names.extend(self.__user_session_registry.keys())
+
+        with self.__token_sessions_lock:
+            user_names.extend(self.__token_session_registry.keys())
+
+        if offset < 0:
+            offset = 0
+        if limit <= 0:
+            limit = 10
+
         if excluding_user_names is None:
             excluding_user_names = []
         elif isinstance(excluding_user_names, str):
             excluding_user_names = [excluding_user_names]
 
-        with self.__token_session_registry:
-            for user_name, tokens in self.__token_session_registry.items():
-                if user_name not in excluding_user_names:
-                    if tokens:
-                        intervals = []
-                        
-                        for token in tokens:
-                            token_session: Session = self.__user_sessions.get(token)
-                            if token_session and not token_session.is_expired:
-                                intervals.append((token_session.expires_at - self.__session_lifespan_seconds, token_session.expires_at))
-
-                        if intervals:
-                            try:
-                                res[self.__user_data_source.get_user(user_name)] = intervals
-                            except UserDataSourceException as e:
-                                raise UserLayerException() from e
+        if user_name_part:
+            user_names = list(filter(lambda user_name: user_name not in excluding_user_names and user_name_part in user_name, user_names))
+        else:
+            user_names = list(filter(lambda user_name: user_name not in excluding_user_names, user_names))
+        
+        res = []
+        for user_name in user_names[offset:limit]:
+            try:
+                res.append(self.get_user_sessions_info(user_name))
+            except:
+                pass
 
         return res
 
