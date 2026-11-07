@@ -1,10 +1,7 @@
 from typing import Any
 import streamlit as st
 from quick_webapp.webapp import menu_page
-from quick_webapp import bean, session_bean
-from quick_webapp.ui.action_table import action_table
-from quick_webapp.security.basic.user import User
-from quick_webapp.security.basic.user_service import UserService
+from quick_webapp import session_bean
 from quick_webapp.ui.security.basic.page import render_all_users_management_page
 from quick_webapp.ui.page_context import PageContext
 from context import webapp, current_user_service, user_service
@@ -23,5 +20,7 @@ with webapp().as_context("User Management | All", page_title_render=lambda title
         user_service(),
         __page_context().get_context(),
         10,
-        current_user_service.get_user().user_name
+        current_user_service.get_user().user_name,
+        roles_column_x=1.5,
+        width=900
     )
