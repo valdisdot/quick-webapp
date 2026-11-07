@@ -265,6 +265,7 @@ def create_user_form(
                                 ),
                                 password
                             )
+                            st.session_state.clear()
                             st.rerun()
 
                         except Exception as e:
@@ -330,7 +331,6 @@ def edit_user_form(
             vertical_alignment="center"
         ):
             if st.button(save_button_label, type="primary", key=f"{key}_save"):
-                name = None if name is None or len(name.strip()) == 0 else name
                 do_pass = True
 
                 if password and password.strip():
@@ -349,13 +349,15 @@ def edit_user_form(
                                 is_ui_user,
                                 is_service_user,
                                 roles,
-                                name if name else user.name,
+                                name,
                                 is_locked,
                                 is_active,
                                 is_password_set_required,
                             ),
                             password
                         )
+
+                        st.session_state.clear()
                         st.rerun()
 
                     except Exception as e:
