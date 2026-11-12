@@ -486,17 +486,18 @@ def __render_object(
 
                 context[expand_key] = st.toggle(" ", help=expander_help if expander_help else None, key=expand_key, label_visibility="visible" if expander_help else "collapsed")
 
-                field_name = "$" if node.is_root else str(node_key)
+                field_name = "$" if node.is_root else node_key
+                disabled = node.is_root or node.parent.is_array
 
                 new_field_name = st.text_input(
                     "Field",
-                    value=field_name,
+                    value=str(field_name),
                     key=__make_widget_key(editor_key, node, "name"),
                     label_visibility="collapsed",
-                    disabled=node.is_root or node.parent.is_array
+                    disabled=disabled
                 )
 
-                if new_field_name != field_name:
+                if not disabled and new_field_name != field_name:
                     if not new_field_name:
                         st.badge("⚠️", color="yellow", help=field_empty_error_text)
 
@@ -694,17 +695,18 @@ def __render_array(
                 context[expand_key] = st.toggle(" ", help=expander_help if expander_help else None, key=expand_key, label_visibility="visible" if expander_help else "collapsed")
                 st.caption(f"[{len(node.value)}]", width="content")
 
-                field_name = "$" if node.is_root else str(node_key)
+                field_name = "$" if node.is_root else node_key
+                disabled = node.is_root or node.parent.is_array
 
                 new_field_name = st.text_input(
                     "Field",
-                    value=field_name,
+                    value=str(field_name),
                     key=__make_widget_key(editor_key, node, "name"),
                     label_visibility="collapsed",
-                    disabled=node.is_root or node.parent.is_array
+                    disabled=disabled
                 )
 
-                if new_field_name != field_name:
+                if not disabled and new_field_name != field_name:
                     if not new_field_name:
                         st.badge("⚠️", color="yellow", help=field_empty_error_text)
 
