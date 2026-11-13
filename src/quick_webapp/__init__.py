@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-from functools import wraps
 from typing import Any, TypeVar, overload, cast
+from collections.abc import Callable
+from functools import lru_cache, wraps
+from threading import RLock
 import streamlit as st
 
 T = TypeVar("T")
@@ -24,22 +25,29 @@ def ensure_session_object(
         return _session_object_supplier()
     return {}
 
-@st.cache_resource
+__object_suppliers: dict[str, Callable[[], Any] | None] = {}
+__object_suppliers_lock = RLock()
+
+@lru_cache(maxsize=None)
+def __get_object(object_key: str) -> Any:
+    return __object_suppliers.get(object_key)()
+
 def ensure_object(
     object_key: str,
     _object_supplier: Callable[[], Any] | None = None,
 ) -> Any:
     """
-    Returns an object that lives in the global (cached) context.
+    Returns a globally cached singleton associated with object_key.
 
-    If ``_object_supplier`` is provided and is callable, it is used
-    to create the object. Otherwise, an empty dictionary is returned.
+    The first supplier registered for a key wins.
+    Independent of Streamlit runtime.
     """
 
-    if _object_supplier is not None and isinstance(_object_supplier, Callable):
-        return _object_supplier()
-    return {}
-
+    with __object_suppliers_lock:
+        if object_key not in __object_suppliers:
+            __object_suppliers[object_key] = _object_supplier if _object_supplier and callable(_object_supplier) else lambda: {}
+    
+    return __get_object(object_key)
 
 @overload
 def session_bean(__func: Callable[[], T], /) -> Callable[[], T]: ...
@@ -116,9 +124,26 @@ def bean(
         return decorator(__func)
     return decorator
 
-def clear():
+def clear_sessions_objects():
     """
-    Clears all context so next factory methods recreate their object.
+    Clears Streamlit session context.
     """
 
     st.cache_resource.clear()
+
+def clear_objects() -> None:
+    """
+    Clears global objects and their suppliers.
+    """
+
+    with __object_suppliers_lock:
+        __object_suppliers.clear()
+        __get_object.cache_clear()
+
+def clear():
+    """
+    Clears all context (session and global) so next factory methods recreate their object.
+    """
+
+    clear_sessions_objects()
+    clear_objects()
