@@ -226,7 +226,7 @@ def __validate_assemble_parts(
             raise ValueError("None key is not allowed as a MenuSkeleton key.")
 
         if not isinstance(value, dict):
-            raise ValueError(f"value for key '{key!r}' has type '{type(value)}', only 'dict' is allowed.")
+            raise ValueError(f"value '{value}' for key '{key!r}' has type '{type(value)}', only 'dict' is allowed.")
 
         if key in scanned:
             params = list(value.keys())
@@ -239,6 +239,9 @@ def __validate_assemble_parts(
             referenced_ids.add(key)
 
         else:
+            if "label" in value or "icon" in value:
+                raise ValueError(f"'label' or 'icon' are present in value dictionary for key '{key}', seems like the key expected to be a menu item but it is not")
+
             __validate_assemble_parts(value, scanned, referenced_ids)
 
     return referenced_ids
