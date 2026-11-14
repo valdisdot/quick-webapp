@@ -16,7 +16,7 @@ class UserDataSource(ABC):
     """
 
     @abstractmethod
-    def create_user(user: User, password: str) -> User:
+    def create_user(user: User, password: str, details: str) -> User:
         """
         Creates a user from the User record.
         """
@@ -33,6 +33,13 @@ class UserDataSource(ABC):
     def get_user_password(self, user_name: str) -> str:
         """
         Fetches user password.
+        """
+        pass
+
+    @abstractmethod
+    def get_user_details(self, user_name: str) -> str:
+        """
+        Fetches user details.
         """
         pass
 
@@ -57,14 +64,14 @@ class UserDataSource(ABC):
         pass
           
     @abstractmethod
-    def update_user(user: User) -> User:
+    def update_user(user: User, details: str | None = None) -> User:
         """
         Updates existing user info.
         """
         pass
 
     @abstractmethod
-    def save_user(user: User, password: str) -> User:
+    def save_user(user: User, password: str, details: str | None = None) -> User:
         """
         Saves existing user info and password.
         """
@@ -127,6 +134,16 @@ class LocalUserDataSource(UserDataSource):
                 )
                 """
             )
+            self.__connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS user_details (
+                    user_name TEXT,
+                    details TEXT,
+                    FOREIGN KEY(user_name) REFERENCES user(user_name),
+                    PRIMARY KEY(user_name)
+                )
+                """
+            )
 
             for role in predefined_roles:
                 self.__connection.execute("INSERT OR IGNORE INTO role (name) VALUES (?)", (role,))
@@ -137,7 +154,7 @@ class LocalUserDataSource(UserDataSource):
         except Exception as e:
             raise UserDataSourceException("Unexpected error while initializing user-related tables") from e  
 
-    def create_user(self, user: User, password: str) -> User:
+    def create_user(self, user: User, password: str, details: str) -> User:
         try:
             user_name = str(user.user_name)
             password = str(password)
@@ -147,12 +164,20 @@ class LocalUserDataSource(UserDataSource):
                     user_name,
                     int(user.is_ui_user),
                     int(user.is_service_user),
-                    user.name if user.name else None,
+                    user.name,
                     password,
                     int(user.locked),
                     int(user.active),
                     int(user.requires_password_update),
-                ),
+                )
+            )
+
+            self.__connection.execute(
+                "INSERT INTO user_details (user_name, details) VALUES (?, ?)",
+                (
+                    user_name,
+                    details
+                )
             )
 
             for role in user.roles:
@@ -189,7 +214,7 @@ class LocalUserDataSource(UserDataSource):
             cur = self.__connection.execute("SELECT password FROM user WHERE user_name = ?", (user_name,))
             row = cur.fetchone()
             if not row:
-                return UserDataSourceException("User does not exist")
+                raise UserDataSourceException("User does not exist")
             
             return row["password"]
         
@@ -198,13 +223,28 @@ class LocalUserDataSource(UserDataSource):
         except Exception as e:
             raise UserDataSourceException("Unexpected error while fetching a username password") from e
 
+    def get_user_details(self, user_name: str) -> str:
+        try:
+            user_name = str(user_name)
+            cur = self.__connection.execute("SELECT details FROM user_details WHERE user_name = ?", (user_name,))
+            row = cur.fetchone()
+            if not row:
+                raise UserDataSourceException("User does not exist")
+            
+            return row["details"]
+        
+        except sqlite3.DatabaseError as e:
+            raise UserDataSourceException(f"Database error while fetching a username details") from e
+        except Exception as e:
+            raise UserDataSourceException("Unexpected error while fetching a username details") from e
+
     def get_user(self, user_name: str) -> User:
         try:
             user_name = str(user_name)
             cur = self.__connection.execute("SELECT * FROM user WHERE user_name = ? LIMIT 1", (user_name,))
             row = cur.fetchone()
             if not row:
-                return UserDataSourceException("User does not exist")
+                raise UserDataSourceException("User does not exist")
             
             roles_cur = self.__connection.execute(
                 "SELECT DISTINCT role FROM user_role WHERE user_name = ?", (user_name,)
@@ -292,7 +332,7 @@ class LocalUserDataSource(UserDataSource):
             self.__connection.rollback()
             raise UserDataSourceException("Unexpected error while updating a user lock") from e
         
-    def update_user(self, user: User) -> User:
+    def update_user(self, user: User, details: str | None = None) -> User:
         try:
             user_name = str(user.user_name)
             self.__connection.execute(
@@ -307,6 +347,15 @@ class LocalUserDataSource(UserDataSource):
                     user_name
                 )
             )
+
+            if details is not None:
+                self.__connection.execute(
+                    "UPDATE user_details SET details = ? WHERE user_name = ?",
+                    (
+                        details,
+                        user_name,
+                    )
+                )
             
             self.__connection.execute(
                 "DELETE FROM user_role WHERE user_name = ?", (user_name,)
@@ -329,7 +378,7 @@ class LocalUserDataSource(UserDataSource):
             self.__connection.rollback()
             raise UserDataSourceException("Unexpected error while saving a user") from e
 
-    def save_user(self, user: User, password: str) -> User:
+    def save_user(self, user: User, password: str, details: str | None = None) -> User:
         try:
             user_name = str(user.user_name)
             password = str(password)
@@ -338,7 +387,7 @@ class LocalUserDataSource(UserDataSource):
                 (
                     int(user.is_ui_user),
                     int(user.is_service_user),
-                    str(user.name) if user.name else None,#is_ui_user, is_service_user
+                    str(user.name) if user.name else None,
                     password,
                     int(user.locked),
                     int(user.active),
@@ -346,6 +395,15 @@ class LocalUserDataSource(UserDataSource):
                     user_name
                 )
             )
+
+            if details is not None:
+                self.__connection.execute(
+                    "UPDATE user_details SET details = ? WHERE user_name = ?",
+                    (
+                        details,
+                        user_name,
+                    )
+                )
             
             self.__connection.execute(
                 "DELETE FROM user_role WHERE user_name = ?", (user_name,)
