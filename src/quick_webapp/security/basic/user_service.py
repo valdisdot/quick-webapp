@@ -358,7 +358,7 @@ class UserService:
 
         if session_id and session_id in self.__user_sessions:
             user_session = self.__user_sessions.get(session_id)
-            if not user_session.is_valid(user_locale, user_timezone, user_agent, ip_address):
+            if user_session.is_valid(user_locale, user_timezone, user_agent, ip_address):
                 user = user_session.user
                 return user.active and not user.locked
         return False
@@ -421,7 +421,7 @@ class UserService:
                 self.__password_hash_function(new_password)
             )
             self.close_all_sessions(user_name)
-            return self.login(user_name, new_password, user_locale, user_timezone)
+            return self.login(user_name, new_password, user_locale, user_timezone, user_agent, ip_address)
 
         except UserLayerException as e:
             raise e
