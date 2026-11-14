@@ -11,7 +11,7 @@ from quick_webapp.webapp import WebApplication, MenuTree, scan_service_pages, sc
 from quick_webapp.security.basic.user import User
 from quick_webapp.security.basic.user_service import UserService
 from quick_webapp.security.basic.curent_user_service import CurrentUserService, scan_pages_permissions, filter_only_permitted_menu_pages, filter_only_permitted_service_pages
-from quick_webapp.security.basic.data_source_impl.sqlite import UserDataSource, SQLiteUserDataSource
+from quick_webapp.security.basic.data_source import UserDataSource, LocalUserDataSource
 
 @bean
 def shutdown_hook_holder() -> ShutdownHookHolder:
@@ -73,7 +73,7 @@ def user_service_pages() -> MenuTree:
 
 @bean
 def user_data_source() -> UserDataSource:
-    return SQLiteUserDataSource(
+    return LocalUserDataSource(
         ["user", "admin"],
         "users.db"
     )
