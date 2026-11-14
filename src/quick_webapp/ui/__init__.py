@@ -61,7 +61,22 @@ def get_browser_timezone() -> str:
     """
     Fetches user browser's timezone string.
     """
+
     return st.context.timezone
+
+def get_browser_user_agent() -> str | None:
+    """
+    Fetches "user-agent" header.
+    """
+
+    return st.context.headers.get("user-agent")
+
+def get_ip_address() -> str | None:
+    """
+    Fetches ip of the user connection.
+    """
+
+    return st.context.ip_address
 
 def console_log(value: str):
     """
