@@ -73,35 +73,39 @@ def user_service_pages() -> MenuTree:
 
 @bean
 def user_data_source() -> UserDataSource:
-    return LocalUserDataSource(
+    data_source = LocalUserDataSource(
         ["user", "admin"],
         "users.db"
     )
 
-@bean
-def user_service() -> UserService:
-    data_source = user_data_source()
 
     if not data_source.is_user_exist("user"):
         data_source.create_user(
             User("user", True, True, ["user"]),
-            "11111"
+            "11111",
+            '{"some_data": "abc"}'
         )
 
         data_source.create_user(
             User("admin", True, True, ["user", "admin"]),
-            "11111"
+            "11111",
+            '{"some_data": "abc"}'
         )
     
     if not data_source.is_user_exist("test_user_1"):
         for i in range(50):
             data_source.create_user(
                 User(f"test_user_{i}", True, False, ["user"]),
-                "11111"
+                "11111",
+                '{"some_data": "abc"}'
             )
 
+    return data_source
+
+@bean
+def user_service() -> UserService:
     return UserService(
-        data_source,
+        user_data_source(),
         lambda password: password,
         lambda user_input, password: user_input == password,
         lambda user, expires_at: f"{user.user_name}-{expires_at}"
