@@ -85,11 +85,15 @@ class UserSession(Session):
                  expires_at: int,
                  locale: str,
                  timezone: str, 
+                 user_agent: str | None,
+                 ip_address: str | None,
                  user: User
     ):
         super().__init__(expires_at, user)
         self.__locale = locale
         self.__timezone = timezone
+        self.__user_agent = user_agent
+        self.__ip_address = ip_address
     
     @property
     def locale(self) -> str:
@@ -106,14 +110,30 @@ class UserSession(Session):
         """
                 
         return self.__timezone
+
+    @property
+    def user_agent(self) -> str | None:
+        """
+        User agent (browser) string.
+        """
+                
+        return self.__user_agent
+
+    @property
+    def ip_address(self) -> str:
+        """
+        User IP address string.
+        """
+                
+        return self.__ip_address
     
     
-    def is_valid(self, locale: str, timezone: str):
+    def is_valid(self, locale: str, timezone: str, user_agent: str | None, ip_address: str | None) -> bool:
         """
         Check is session is valid now.
         """
 
-        not self.is_expired and self.__locale == locale and self.__timezone == timezone
+        return not self.is_expired and self.__locale == locale and self.__timezone == timezone and user_agent == self.__user_agent and ip_address == self.__ip_address
 
 class SessionsInfo:
     """
@@ -282,7 +302,7 @@ class UserService:
         except UserDataSourceException as e:
             raise UserLayerException() from e
 
-    def login(self, user_name: str, password: str, user_locale: str, user_timezone: str) -> str:
+    def login(self, user_name: str, password: str, user_locale: str, user_timezone: str, user_agent: str | None, ip_address: str | None) -> str:
         """
         Logins the user and set the session. Returns a session ID if user allowed to login.
         If user exceeds max_login_attempts, user will be locked.
@@ -308,7 +328,7 @@ class UserService:
                 raise UserLockedException(f"User '{user_name}' is locked")
                 
             session_id = str(uuid4())
-            user_session = UserSession(time.time() + self.__session_lifespan_seconds, user_locale, user_timezone, user)
+            user_session = UserSession(time.time() + self.__session_lifespan_seconds, user_locale, user_timezone, user_agent, ip_address, user)
 
             with self.__user_sessions_lock:
                 self.__user_sessions[session_id] = user_session
@@ -331,14 +351,14 @@ class UserService:
         except Exception as e:
             raise UserLayerException("Unexpected error during login") from e
 
-    def is_logged_in(self, session_id: str, user_locale: str, user_timezone: str) -> bool:
+    def is_logged_in(self, session_id: str, user_locale: str, user_timezone: str, user_agent: str | None, ip_address: str | None) -> bool:
         """
         Checks if the user is logged in and it session is valid.
         """
 
         if session_id and session_id in self.__user_sessions:
             user_session = self.__user_sessions.get(session_id)
-            if not user_session.is_valid(user_locale, user_timezone):
+            if not user_session.is_valid(user_locale, user_timezone, user_agent, ip_address):
                 user = user_session.user
                 return user.active and not user.locked
         return False
@@ -367,7 +387,7 @@ class UserService:
 
         return False
 
-    def set_password(self, session_id: str, password: str, new_password: str, user_locale: str, user_timezone: str) -> str:
+    def set_password(self, session_id: str, password: str, new_password: str, user_locale: str, user_timezone: str, user_agent: str | None, ip_address: str | None) -> str:
         """
         Sets tne current user password, clears all sessions and relogins, returning a new session id.
         Password policy as the same as for login - user will be locked if the current password does not match max_login_attempts.
@@ -382,7 +402,7 @@ class UserService:
         password = self.__prepare_password_input(password)
         new_password = self.__prepare_password_input(new_password)
         
-        user = self.get_user(session_id, user_locale, user_timezone)
+        user = self.get_user(session_id, user_locale, user_timezone, user_agent, ip_address)
         user_name = user.user_name
         self.__check_user_credentials(user_name, password)
                 
@@ -423,7 +443,7 @@ class UserService:
                     if session_id in user_session_registry:
                         user_session_registry.remove(session_id)
 
-    def get_user(self, session_id: str, user_locale: str, user_timezone: str) -> User:
+    def get_user(self, session_id: str, user_locale: str, user_timezone: str, user_agent: str | None, ip_address: str | None) -> User:
         """
         Returns a user if session is active. 
 
@@ -433,7 +453,7 @@ class UserService:
         if session_id:
             user_session = self.__user_sessions.get(session_id)
             if user_session:
-                if user_session.is_expired or user_session.locale != user_locale or user_session.timezone != user_timezone:
+                if not user_session.is_valid(user_locale, user_timezone, user_agent, ip_address):
                     raise InvalidUserSessionException("User has an invalid session")
                 return user_session.user
             
@@ -459,7 +479,7 @@ class UserService:
         except Exception as e:
             raise UserLayerException("Unexpected error during user details serialization") from e
 
-    def get_user_details(self, session_id: str, user_locale: str, user_timezone: str) -> dict[str, Any]:
+    def get_user_details(self, session_id: str, user_locale: str, user_timezone: str, user_agent: str | None, ip_address: str | None) -> dict[str, Any]:
         """
         Returns a user details if session is active. 
 
@@ -469,7 +489,7 @@ class UserService:
         if session_id:
             user_session = self.__user_sessions.get(session_id)
             if user_session:
-                if user_session.is_expired or user_session.locale != user_locale or user_session.timezone != user_timezone:
+                if not user_session.is_valid(user_locale, user_timezone, user_agent, ip_address):
                     raise InvalidUserSessionException("User has an invalid session")
 
                 return self.__fetch_user_details(user_session.user.user_name)

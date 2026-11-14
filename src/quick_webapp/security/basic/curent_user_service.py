@@ -179,13 +179,15 @@ class CurrentUserService:
         self.__no_permision_value = no_permision_query_value
         self.__session_id_key = session_id_key
     
-    def __fetch_session_values(self) -> tuple[str, str, str]:
+    def __fetch_session_values(self) -> tuple[str, str, str, str | None, str | None]:
         session_id = ui.read_cookie(self.__session_id_key)
         if session_id is not None:
             return (
                 session_id,
                 ui.get_browser_locate(),
-                ui.get_browser_timezone()
+                ui.get_browser_timezone(),
+                ui.get_browser_user_agent(),
+                ui.get_ip_address()
             )
         raise InvalidUserSessionException(f"Current user has an invalid session")
 
@@ -242,9 +244,9 @@ class CurrentUserService:
         """
         
         try:
-            session_id, locale, timezone = self.__fetch_session_values()
+            session_id, locale, timezone, user_locale, ip_address = self.__fetch_session_values()
             if (
-                self.__user_service.is_logged_in(session_id, locale, timezone) and
+                self.__user_service.is_logged_in(session_id, locale, timezone, user_locale, ip_address) and
                 not self.__user_service.is_new_password_update_required(session_id)
             ):
                 if with_roles is not None and not self.__user_service.is_allowed(session_id, with_roles):
@@ -253,7 +255,6 @@ class CurrentUserService:
                 st.switch_page(self.__login_page)
         except Exception as e:
             st.switch_page(self.__login_page)
-
             
     def logout(self):
         """
