@@ -1,7 +1,9 @@
+from typing import Any
 from collections.abc import Callable, Iterable
 from uuid import uuid4
 import time
 import threading
+import json
 from quick_webapp.security.basic.user import User
 from quick_webapp.security.basic.data_source import UserDataSource, UserDataSourceException
 
@@ -174,6 +176,8 @@ class UserService:
         password_hash_function: Callable[[str], str],
         password_hash_check_function: Callable[[str, str], bool],
         token_generator: Callable[[User, int], str],
+        details_cipher_function: Callable[[str], str] = lambda plain_user_details: plain_user_details,
+        details_decipher_function: Callable[[str], str] = lambda ciphered_user_details: ciphered_user_details,
         user_name_validator: Callable[[str], bool] = lambda user_name: True,
         password_validator: Callable[[str], bool] = lambda passsword: True,
         token_validator: Callable[[str], bool] = lambda token: True,
@@ -195,9 +199,11 @@ class UserService:
         """
 
         self.__user_data_source: UserDataSource = user_data_source
-
+        self.__details_cipher_function = details_cipher_function
+        self.__details_decipher_function = details_decipher_function
         self.__password_hash_function: Callable[[str], str] = password_hash_function
         self.__password_hash_check_function : Callable[[str, str], bool] = password_hash_check_function
+
         self.__user_name_validator: Callable[[str], bool] = user_name_validator
         self.__password_validator: Callable[[str], bool] = password_validator
         self.__user_session_registry: dict[str, list[str]] = {}
@@ -321,7 +327,7 @@ class UserService:
         except UserLayerException as e:
             raise e
         except UserDataSourceException as e:
-            raise UserLayerException(e) from e
+            raise UserLayerException() from e
         except Exception as e:
             raise UserLayerException("Unexpected error during login") from e
 
@@ -400,7 +406,7 @@ class UserService:
         except UserLayerException as e:
             raise e
         except UserDataSourceException as e:
-            raise UserLayerException(e) from e
+            raise UserLayerException() from e
         except Exception as e:
             raise UserLayerException("Unexpected error during password set") from e
 
@@ -433,6 +439,43 @@ class UserService:
             
         raise UserNotFoundException("No active session found for a visitor with this session")    
 
+    def __fetch_user_details(self, user_name: str) -> dict[str, Any]:
+        try:
+            details_str = self.__details_decipher_function(self.__user_data_source.get_user_details(user_name))
+            return json.loads(details_str)
+            
+        except UserDataSourceException as e:
+            raise UserLayerException() from e
+        except json.JSONDecodeError as e:
+            raise UserLayerException("Unable to deserialize the user details from deciphered text") from e
+        except Exception as e:
+            raise UserLayerException("Unexpected error during user details deserialization") from e
+
+    def __make_user_details_str(self, details: dict[str, Any] | None) -> str:
+        try:
+            return self.__details_cipher_function(json.dumps(details if details else {}))
+        except json.JSONDecodeError as e:
+            raise UserLayerException("Unable to deserialize the user details from deciphered text") from e
+        except Exception as e:
+            raise UserLayerException("Unexpected error during user details serialization") from e
+
+    def get_user_details(self, session_id: str, user_locale: str, user_timezone: str) -> dict[str, Any]:
+        """
+        Returns a user details if session is active. 
+
+        Raises: InvalidUserSessionException, UserNotFoundException
+        """
+        
+        if session_id:
+            user_session = self.__user_sessions.get(session_id)
+            if user_session:
+                if user_session.is_expired or user_session.locale != user_locale or user_session.timezone != user_timezone:
+                    raise InvalidUserSessionException("User has an invalid session")
+
+                return self.__fetch_user_details(user_session.user.user_name)
+            
+        raise UserNotFoundException("No active session found for a visitor with this session")   
+
     def fetch_user(self, user_name: str) -> User:
         """
         Fetches user by its user_name from the data source. It is a service method, not user-specific, not user_name
@@ -445,6 +488,18 @@ class UserService:
                 return self.__user_data_source.get_user(user_name)
             except UserDataSourceException as e:
                 raise UserLayerException() from e
+            
+        raise UserNotFoundException("User is not found")
+
+    def fetch_user_details(self, user_name: str) -> User:
+        """
+        Fetches user details by its user_name from the data source. It is a service method, not user-specific, not user_name
+
+        Raises: UserNotFoundException (even in cases where user_name itself is empty or not a string)
+        """
+
+        if user_name and isinstance(user_name, str) and self.__user_data_source.is_user_exist(user_name):
+            return self.__fetch_user_details(user_name)
             
         raise UserNotFoundException("User is not found")
         
@@ -476,7 +531,7 @@ class UserService:
         except UserDataSourceException as e:
             raise UserLayerException() from e
 
-    def register_user(self, user: User, password: str) -> User:
+    def register_user(self, user: User, password: str, details: dict[str, Any] | None = None) -> User:
         """
         Creates a new user.
 
@@ -490,11 +545,11 @@ class UserService:
             raise InvalidUserDataException("Username has already taken")
         
         try:
-            return self.__user_data_source.create_user(user, self.__password_hash_function(password))
+            return self.__user_data_source.create_user(user, self.__password_hash_function(password), self.__make_user_details_str(details))
         except UserDataSourceException as e:
             raise UserLayerException() from e
 
-    def update_user(self, user: User, password: str | None = None) -> User:
+    def update_user(self, user: User, password: str | None = None, details: dict[str, Any] | None = None) -> User:
         """
         Updates a user. Method is public to be used by administrators.
         """
@@ -504,10 +559,12 @@ class UserService:
         if not self.__user_data_source.is_user_exist(user.user_name):
             raise InvalidUserDataException("Username does not exist to update")
         try:
+            details_str = None if details is None else self.__make_user_details_str(details)
+
             if password is None:
-                return self.__user_data_source.update_user(user)
+                return self.__user_data_source.update_user(user, details_str)
             else:
-                return self.__user_data_source.save_user(user, self.__password_hash_function(self.__prepare_password_input(password)))
+                return self.__user_data_source.save_user(user, self.__password_hash_function(self.__prepare_password_input(password)), details_str)
 
         except UserDataSourceException as e:
             raise UserLayerException() from e

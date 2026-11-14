@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Iterable 
+from typing import Iterable, Any
 import streamlit as st
 from pathlib import Path
 from quick_webapp.security.basic.user import User
@@ -197,6 +197,10 @@ class CurrentUserService:
         """
 
         return self.__user_service.get_user(*self.__fetch_session_values())
+
+    def get_user_details(self) -> dict[str, Any]:
+
+        return self.__user_service.get_user_details(*self.__fetch_session_values())
     
     def is_logged_in(self) -> bool:
         """
