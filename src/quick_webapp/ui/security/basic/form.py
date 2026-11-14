@@ -49,7 +49,7 @@ def login_form(
 
                         if len(user_name) and len(password):
                             try:
-                                session_id = user_service.login(user_name, password, ui.get_browser_locate(), ui.get_browser_timezone())
+                                session_id = user_service.login(user_name, password, ui.get_browser_locate(), ui.get_browser_timezone(), ui.get_browser_user_agent(), ui.get_ip_address())
         
                             except Exception as e:
                                 error = e
@@ -87,9 +87,16 @@ def registration_form(
     If user clicked on login button or got successfully registered, browser cache will remove a cookie with 'registration_key' key from this method params, and then the gets refreshed.
     """
 
+    roles = []
+    if default_roles:
+        if isinstance(default_roles, str):
+            roles.append(default_roles)
+        elif isinstance(default_roles, Iterable):
+            for role in default_roles:
+                roles.append(str(role))
+
     @st.dialog(title, width="small", dismissible=False)
     def dialog():
-        roles = [] if not default_roles else ([str(default_role) for default_role in default_roles] if isinstance(default_roles, Iterable) else [str(default_roles)])
         user_name = st.text_input(user_name_label)
         full_name = st.text_input(full_name_label) if full_name_label is not None else None
         password = st.text_input(password_label, type="password")
@@ -167,7 +174,7 @@ def set_password_form(
                             error = passwords_do_not_match_text
                         elif len(password) and len(new_password):
                             try:
-                                new_session_id = user_service.set_password(session_id, password, new_password, ui.get_browser_locate(), ui.get_browser_timezone())
+                                new_session_id = user_service.set_password(session_id, password, new_password, ui.get_browser_locate(), ui.get_browser_timezone(), ui.get_browser_user_agent(), ui.get_ip_address())
                                 ui.write_cookie(session_id_key, new_session_id, user_service.session_lifespan_seconds)
                                 ui.restart_browser_window()
                             except (InvalidUserSessionException, UserLockedException, UserNotActiveException, UserNotFoundException):
