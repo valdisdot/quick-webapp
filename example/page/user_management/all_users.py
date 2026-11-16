@@ -11,6 +11,11 @@ from context import webapp, current_user_service, user_service
 def __page_context() -> PageContext:
     return PageContext("user_management_all_users")
 
+def __registration_default_user_details() -> dict:
+    return {
+        "self_registered": False
+    }
+
 menu_page("9_User Management", "1_All")
 current_user_service = current_user_service()
 current_user_service.only_permitted("admin")
@@ -18,6 +23,7 @@ current_user_service.only_permitted("admin")
 with webapp().as_context("User Management | All", page_title_render=lambda title: st.subheader(title)):
     render_all_users_management_page(
         user_service(),
+        __registration_default_user_details,
         __page_context().get_context(),
         10,
         current_user_service.get_user().user_name,
