@@ -1006,7 +1006,7 @@ def structure_editor(
 
     Returns the root Node from the data with current editing. User can fetch data back using Node.data() method.
 
-    data: root dict or list.
+    data: root dict, list or Node. In case of Node, editor will be refreshed if the value changes (so user can set the editor by a new Node while it's opened)
 
     key: unique identifier for this editor instance.
 
@@ -1039,6 +1039,10 @@ def structure_editor(
 
     editor_context = context[key]
     root: Node = editor_context["node"]
+
+    if isinstance(data, Node) and data != root:
+        root = data
+        editor_context["node"] = data
 
     with st.container(width=width):
         __render_structure_editor_node(
@@ -1245,7 +1249,7 @@ def data_editor(
     In case when expand_all_label or collapse_all_label are provided,
     top level node will contain expand all or collapse all buttons respectively.
 
-    data: root dict or list.
+    data: root dict, list or Node. In case of Node, editor will be refreshed if the value changes (so user can set the editor by a new Node while it's opened)
 
     key: unique identifier for this editor instance.
 
@@ -1281,6 +1285,10 @@ def data_editor(
 
     editor_context = context[key]
     root: Node = editor_context["node"]
+
+    if isinstance(data, Node) and data != root:
+        root = data
+        editor_context["node"] = data
 
     with st.container(border=True, width=width):
         if expand_all_label or collapse_all_label:
