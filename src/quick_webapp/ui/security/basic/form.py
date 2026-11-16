@@ -1,21 +1,23 @@
+from typing import Any
 from collections.abc import Callable, Iterable
 import streamlit as st
 import quick_webapp.ui as ui
+from quick_webapp.ui.editor import data_editor, Node
 from quick_webapp.security.basic.user import User
 from quick_webapp.security.basic.user_service import UserService, InvalidUserSessionException, UserLockedException, UserNotActiveException, UserNotFoundException, UserLayerException
 
 def login_form(
         user_service: UserService,
         session_id_key: str,
-        registration_key: str | None = None,
-        title: str = "Login",
-        user_name_label: str = "Username",
-        password_label: str = "Password",
-        login_button_label: str = "Login",
-        registration_button_label: str = "Registration",
-        help_text: str | None = None,
-        help_badge: str = "🛟",
-        exception_text_mapper: Callable[[Exception], str] = lambda exception: str(exception)
+        registration_key: str | None,
+        title: str,
+        user_name_label: str,
+        password_label: str,
+        login_button_label: str,
+        registration_button_label: str,
+        help_text: str | None,
+        help_badge: str,
+        exception_text_mapper: Callable[[Exception], str]
     ):
     """
     Displays login dialog.
@@ -68,18 +70,19 @@ def registration_form(
         user_service: UserService,
         default_roles: str | Iterable[str] | None,
         default_active_status: bool,
+        registration_default_user_details_supplier: Callable[[], dict[str, Any]] | None,
         registration_key: str,
-        title: str = "Registration",
-        user_name_label: str = "Username",
-        full_name_label: str | None = "Full name",
-        password_label: str = "Password",
-        confirm_password_label: str = "Confirm password",
-        register_button_label: str = "Register",
-        login_button_label: str = "Login",
-        help_badge: str = "🛟",
-        help_text: str | None = None,
-        exception_text_mapper: Callable[[Exception], str] = lambda exception: str(exception),
-        passwords_do_not_match_text: str = "Passwords do not match!"
+        title: str,
+        user_name_label: str,
+        full_name_label: str | None,
+        password_label: str,
+        confirm_password_label: str,
+        register_button_label: str,
+        login_button_label: str,
+        help_badge: str,
+        help_text: str | None,
+        exception_text_mapper: Callable[[Exception], str],
+        passwords_do_not_match_text: str
     ):
     """
     Displays registration dialog. User only provide username, full name and password, role and active status must be specified withing parameters of this method.
@@ -126,7 +129,8 @@ def registration_form(
                             try:
                                 user_service.register_user(
                                     User(user_name, True, False, roles, full_name, False, default_active_status, False),
-                                    password
+                                    password,
+                                    None if registration_default_user_details_supplier is None else registration_default_user_details_supplier() 
                                 )
                                 ui.delete_cookie(registration_key)
                                 ui.restart_browser_window()
@@ -142,13 +146,13 @@ def registration_form(
 def set_password_form(
         user_service: UserService,
         session_id_key: str,
-        title: str = "Set a password",
-        password_label: str = "Password",
-        new_password_label: str = "New password",
-        confirm_new_password_label: str = "Confirm new password",
-        set_button_label: str = "Set",
-        exception_text_mapper: Callable[[Exception], str] = lambda exception: str(exception),
-        passwords_do_not_match_text: str = "Passwords do not match!"
+        title: str,
+        password_label: str,
+        new_password_label: str,
+        confirm_new_password_label: str,
+        set_button_label: str,
+        exception_text_mapper: Callable[[Exception], str],
+        passwords_do_not_match_text: str
     ):
     """
     Displays set password dialog for a user from the current session.
@@ -189,35 +193,34 @@ def set_password_form(
 
     dialog()
 
-def __fetch_user(user_name: str, user_service: UserService) -> User | None:
-    try:
-        return user_service.fetch_user(user_name)
-    except UserLayerException as e:
-        ui.console_error(f"{e}")
-        st.rerun()
-
 def create_user_form(
     user_service: UserService,
-    title: str = "Create a user",
-    user_name_label: str = "Username",
-    full_name_label: str | None = "Full name",
-    password_label: str = "Password",
-    confirm_password_label: str = "Confirm password",
-    roles_label: str = "Roles",
-    is_ui_user_label: str = "UI user",
-    is_service_user_label: str = "Service user",
-    is_active_label: str = "Active",
-    is_locked_label: str = "Locked",
-    is_password_set_required_label: str = "Require password set",
-    create_button_label: str = "Create",
-    exception_text_mapper: Callable[[Exception], str] = lambda exception: str(exception),
-    passwords_do_not_match_text: str = "Passwords do not match!",
-    key_suffix: str | None = None
+    registration_default_user_details_supplier: Callable[[], dict[str, Any]] | None,
+    context: dict[str, Any],
+    title: str,
+    user_name_label: str,
+    full_name_label: str | None,
+    password_label: str,
+    confirm_password_label: str,
+    roles_label: str,
+    is_ui_user_label: str,
+    is_service_user_label: str,
+    is_active_label: str,
+    is_locked_label: str,
+    is_password_set_required_label: str,
+    details_label: str,
+    create_button_label: str,
+    exception_text_mapper: Callable[[Exception], str],
+    passwords_do_not_match_text: str,
+    key_suffix: str | None
 ):
     """
     Displays a form to create a user.
     Reruns Streamlit script if registration is successful.
     """
+
+    details = None if registration_default_user_details_supplier is None else registration_default_user_details_supplier()
+    details = Node.create(details) if details else None
 
     @st.dialog(title, width="small", dismissible=True)
     def dialog():
@@ -240,6 +243,10 @@ def create_user_form(
         is_active = st.toggle(is_active_label, True, key=f"{key}_is_active")
         is_locked = st.toggle(is_locked_label, key=f"{key}_is_locked")
         is_password_set_required = st.toggle(is_password_set_required_label, True, key=f"{key}_password_set_required")
+
+        if details:
+            st.write(f"**{details_label}**")
+            data_editor(details, key, context, True, is_one_based_array_index=True)
 
         error = None
 
@@ -270,7 +277,8 @@ def create_user_form(
                                     is_active,
                                     is_password_set_required,
                                 ),
-                                password
+                                password,
+                                details.data() if details else None
                             )
                             st.session_state.clear()
                             st.rerun()
@@ -283,33 +291,52 @@ def create_user_form(
 
     dialog()
 
+def __fetch_user(user_name: str, user_service: UserService) -> User | None:
+    try:
+        return user_service.fetch_user(user_name)
+    except UserLayerException as e:
+        ui.console_error(f"{e}")
+        st.rerun()
+
+def __fetch_user_details(user_name: str, user_service: UserService) -> dict[str, Any]:
+    try:
+        return user_service.fetch_user_details(user_name)
+    except UserLayerException as e:
+        ui.console_error(f"{e}")
+        st.rerun()
+
 def edit_user_form(
     user_name: str,
     user_service: UserService,
-    title: str = "Edit a user",
-    full_name_label: str | None = "Full name",
-    password_label: str = "Password",
-    confirm_password_label: str = "Confirm password",
-    roles_label: str = "Roles",
-    is_ui_user_label: str = "UI user",
-    is_service_user_label: str = "Service user",
-    is_active_label: str = "Active",
-    is_locked_label: str = "Locked",
-    is_password_set_required_label: str = "Require password set",
-    save_button_label: str = "Save",
-    exception_text_mapper: Callable[[Exception], str] = lambda exception: str(exception),
-    passwords_do_not_match_text: str = "Passwords do not match!",
-    key_suffix: str | None = None
+    context: dict[str, Any],
+    title: str,
+    full_name_label: str | None,
+    password_label: str,
+    confirm_password_label: str,
+    roles_label: str,
+    is_ui_user_label: str,
+    is_service_user_label: str,
+    is_active_label: str,
+    is_locked_label: str,
+    is_password_set_required_label: str,
+    details_label: str,
+    save_button_label: str,
+    exception_text_mapper: Callable[[Exception], str],
+    passwords_do_not_match_text: str,
+    key_suffix: str | None
 ):
     """
     Displays a form to edit a user.
     Reruns Streamlit script if update is successful.
     """
 
-    @st.dialog(title, width="small", dismissible=True)
-    def dialog(user: User):
-        key = f"{key_suffix}_edit_user_form" if key_suffix else "edit_user_form"
+    user = __fetch_user(user_name, user_service)
+    details = __fetch_user_details(user_name, user_service)
+    details_node = Node.create(details) if details else None
+    key = f"{key_suffix}_edit_user_form" if key_suffix else "edit_user_form"
 
+    @st.dialog(title, width="small", dismissible=True)
+    def dialog():
         st.text_input(user_name, user_name, label_visibility="hidden", disabled=True, key=f"{key}_user_name")
         name = (st.text_input(full_name_label, user.name, key=f"{key}_name") if full_name_label is not None else None)
 
@@ -328,6 +355,10 @@ def edit_user_form(
         is_active = st.toggle(is_active_label, user.active, key=f"{key}_is_active")
         is_locked = st.toggle(is_locked_label, user.locked, key=f"{key}_is_locked")
         is_password_set_required = st.toggle(is_password_set_required_label, user.requires_password_update, key=f"{key}_password_set_required")
+
+        if details_node:
+            st.write(f"**{details_label}**")
+            data_editor(details_node, key, context, True, is_one_based_array_index=True)
 
         error = None
 
@@ -361,7 +392,8 @@ def edit_user_form(
                                 is_active,
                                 is_password_set_required,
                             ),
-                            password
+                            password,
+                            details_node.data() if details_node else details
                         )
 
                         st.session_state.clear()
@@ -373,4 +405,4 @@ def edit_user_form(
         if error:
             st.error(error)
 
-    dialog(__fetch_user(user_name, user_service))
+    dialog()
