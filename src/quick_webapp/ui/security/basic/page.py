@@ -74,6 +74,7 @@ class SecurityUIConfig:
         back_page_button_label: str = "< Back",
 
         # Shared texts
+        details_label: str = "Details",
         help_badge: str = "🛟",
         exception_text_mapper: Callable[[Exception], str] = lambda exception: str(exception),
         passwords_do_not_match_text: str = "Passwords do not match!",
@@ -141,6 +142,7 @@ class SecurityUIConfig:
         self.__back_page_button_label = back_page_button_label
 
         # Shared texts
+        self.__details_label = details_label
         self.__help_badge = help_badge
         self.__exception_text_mapper = exception_text_mapper
         self.__passwords_do_not_match_text = passwords_do_not_match_text
@@ -345,6 +347,10 @@ class SecurityUIConfig:
     # Shared texts
 
     @property
+    def details_label(self) -> str:
+        return self.__details_label
+
+    @property
     def help_badge(self) -> str:
         return self.__help_badge
 
@@ -385,6 +391,7 @@ def render_login_page(
     registration_key: str | None = None,
     registration_default_roles: str | Iterable[str] | None = None,
     registration_default_active_status: bool | None = None,
+    registration_default_user_details_supplier: Callable[[], dict[str, Any]] | None = None,
     security_ui_config: SecurityUIConfig = SecurityUIConfig()
 ):
     """
@@ -405,6 +412,7 @@ def render_login_page(
                 user_service,
                 registration_default_roles,
                 registration_default_active_status,
+                registration_default_user_details_supplier,
                 registration_key,
                 security_ui_config.registration_title,
                 security_ui_config.user_name_label,
@@ -452,6 +460,7 @@ def __call_edit_user_form(user: User, user_service: UserService, page_context: d
     edit_user_form(
         user.user_name, 
         user_service,
+        page_context,
         security_ui_config.edit_user_title,
         security_ui_config.full_name_label,
         security_ui_config.password_label,
@@ -462,6 +471,7 @@ def __call_edit_user_form(user: User, user_service: UserService, page_context: d
         security_ui_config.is_active_label,
         security_ui_config.is_locked_label,
         security_ui_config.is_password_set_required_label,
+        security_ui_config.details_label,
         security_ui_config.save_button_label,
         security_ui_config.exception_text_mapper,
         security_ui_config.passwords_do_not_match_text,
@@ -470,9 +480,11 @@ def __call_edit_user_form(user: User, user_service: UserService, page_context: d
 
     page_context["do_search"] = True
 
-def __call_create_user_form(user_service: UserService, page_context: dict[str, Any], security_ui_config: SecurityUIConfig, key_suffix: str):
+def __call_create_user_form(user_service: UserService, registration_default_user_details_supplier: Callable[[], dict[str, Any]] | None, page_context: dict[str, Any], security_ui_config: SecurityUIConfig, key_suffix: str):
     create_user_form(
         user_service,
+        registration_default_user_details_supplier,
+        page_context,
         security_ui_config.create_user_title,
         security_ui_config.user_name_label,
         security_ui_config.full_name_label,
@@ -484,6 +496,7 @@ def __call_create_user_form(user_service: UserService, page_context: dict[str, A
         security_ui_config.is_active_label,
         security_ui_config.is_locked_label,
         security_ui_config.is_password_set_required_label,
+        security_ui_config.details_label,
         security_ui_config.create_user_button_label,
         security_ui_config.exception_text_mapper,
         security_ui_config.passwords_do_not_match_text,
@@ -523,6 +536,7 @@ def __setup_render_all_users_management_page(security_ui_config: SecurityUIConfi
 @st.fragment
 def render_all_users_management_page(
     user_service: UserService,
+    registration_default_user_details_supplier: Callable[[], dict[str, Any]] | None,
     context: dict[str, Any],
     users_per_page = 10,
     excluding_user_names: list[str] | str | None = None,
@@ -566,7 +580,7 @@ def render_all_users_management_page(
 
     with st.container(width=width):
         if st.button(security_ui_config.create_new_user_button_label, type="primary", key=f"{key}_create_new_user"):
-            __call_create_user_form(user_service, page_context, security_ui_config, key)
+            __call_create_user_form(user_service, registration_default_user_details_supplier, page_context, security_ui_config, key)
 
         with st.container(horizontal=True, vertical_alignment="bottom", width="content", key=f"{key}_search"):
             q_user_name = st.text_input(security_ui_config.search_by_user_name_text_field_label, "", width=350, key=f"{key}_search_by_user_name_text_field")
