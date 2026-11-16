@@ -193,6 +193,13 @@ def set_password_form(
 
     dialog()
 
+def __reset(context: dict[str, Any], key: str):
+    if key in context:
+        del context[key]
+
+    st.session_state.clear()
+    st.rerun()
+
 def create_user_form(
     user_service: UserService,
     registration_default_user_details_supplier: Callable[[], dict[str, Any]] | None,
@@ -221,10 +228,10 @@ def create_user_form(
 
     details = None if registration_default_user_details_supplier is None else registration_default_user_details_supplier()
     details = Node.create(details) if details else None
+    key = f"{key_suffix}_create_user_form" if key_suffix else "create_user_form"
 
-    @st.dialog(title, width="small", dismissible=True)
+    @st.dialog(title, width="small", dismissible=True, on_dismiss=lambda: __reset(context, key))
     def dialog():
-        key = f"{key_suffix}_create_user_form" if key_suffix else "create_user_form"
         user_name = st.text_input(user_name_label, key=f"{key}_user_name")
         name = st.text_input(full_name_label, key=f"{key}_name") if full_name_label is not None else None
 
@@ -280,8 +287,7 @@ def create_user_form(
                                 password,
                                 details.data() if details else None
                             )
-                            st.session_state.clear()
-                            st.rerun()
+                            __reset(context, key)
 
                         except Exception as e:
                             error = exception_text_mapper(e)
@@ -335,7 +341,7 @@ def edit_user_form(
     details_node = Node.create(details) if details else None
     key = f"{key_suffix}_edit_user_form" if key_suffix else "edit_user_form"
 
-    @st.dialog(title, width="small", dismissible=True)
+    @st.dialog(title, width="small", dismissible=True, on_dismiss=lambda: __reset(context, key))
     def dialog():
         st.text_input(user_name, user_name, label_visibility="hidden", disabled=True, key=f"{key}_user_name")
         name = (st.text_input(full_name_label, user.name, key=f"{key}_name") if full_name_label is not None else None)
@@ -396,8 +402,7 @@ def edit_user_form(
                             details_node.data() if details_node else details
                         )
 
-                        st.session_state.clear()
-                        st.rerun()
+                        __reset(context, key)
 
                     except Exception as e:
                         error = exception_text_mapper(e)
