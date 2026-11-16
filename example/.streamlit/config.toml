@@ -16,7 +16,7 @@ toolbarMode = "minimal"
 showErrorLinks = false
 
 [runner]
-fastReruns = false
+fastReruns = true
 
 [theme]
 base = "light"
