@@ -16,5 +16,5 @@ render_login_page(
     home_page(),
     "registraction",
     "user",
-    registration_default_user_details=__registration_default_user_details
+    registration_default_user_details_supplier=__registration_default_user_details
 )
