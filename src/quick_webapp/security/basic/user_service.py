@@ -511,7 +511,7 @@ class UserService:
             
         raise UserNotFoundException("User is not found")
 
-    def fetch_user_details(self, user_name: str) -> User:
+    def fetch_user_details(self, user_name: str) -> dict[str, Any]:
         """
         Fetches user details by its user_name from the data source. It is a service method, not user-specific, not user_name
 
