@@ -1,6 +1,7 @@
 from typing import Any, Literal
 from collections.abc import Callable, Iterable
 from pathlib import Path
+from uuid import uuid4
 import streamlit as st
 from quick_webapp.security.basic.user import User
 from quick_webapp.security.basic.curent_user_service import UserService
@@ -475,7 +476,7 @@ def __call_edit_user_form(user: User, user_service: UserService, page_context: d
         security_ui_config.save_button_label,
         security_ui_config.exception_text_mapper,
         security_ui_config.passwords_do_not_match_text,
-        key_suffix
+        f"{key_suffix}_{user.user_name}"
     )
 
     page_context["do_search"] = True
@@ -500,7 +501,7 @@ def __call_create_user_form(user_service: UserService, registration_default_user
         security_ui_config.create_user_button_label,
         security_ui_config.exception_text_mapper,
         security_ui_config.passwords_do_not_match_text,
-        key_suffix
+        f"{key_suffix}_{str(uuid4())}"
     )
 
     page_context["do_search"] = True
