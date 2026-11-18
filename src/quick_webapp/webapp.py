@@ -464,6 +464,9 @@ class WebApplication:
     def __build_base_css(cls) -> str:
         config = st_config.get_config_options(force_reparse=True)
         theme_base = config.get("theme.base").value
+        if not theme_base:
+            theme_base = "light"
+            
         theme_sidebar_bg = config.get("theme.sidebar.backgroundColor").value
         theme_secondary_bg = config.get("theme.secondaryBackgroundColor").value
         sidebar_bg = theme_sidebar_bg if theme_sidebar_bg else (theme_secondary_bg if theme_secondary_bg else ("#f0f2f6" if theme_base == "light" else "#262730"))
