@@ -11,9 +11,9 @@ license = {text = "MIT"}
 
 dependencies = [
     "streamlit>=1.63.0",
+    "streamlit-ace",
     "pandas",
     "openpyxl",
-    "bcrypt",
     "genson"
 ]
 

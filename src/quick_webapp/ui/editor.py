@@ -1,7 +1,11 @@
 from __future__ import annotations
-from typing import Any, Literal
+from typing import Any, Literal, Iterable
+from collections.abc import Callable
 from uuid import uuid4
+import math
 import streamlit as st
+from streamlit import config as st_config
+from streamlit_ace import st_ace, THEMES
 from quick_webapp import bean
 
 class Node:
@@ -1006,7 +1010,7 @@ def structure_editor(
 
     Returns the root Node from the data with current editing. User can fetch data back using Node.data() method.
 
-    data: root dict or list.
+    data: root dict, list or Node. In case of Node, editor will be refreshed if the value changes (so user can set the editor by a new Node while it's opened)
 
     key: unique identifier for this editor instance.
 
@@ -1039,6 +1043,10 @@ def structure_editor(
 
     editor_context = context[key]
     root: Node = editor_context["node"]
+
+    if isinstance(data, Node) and data != root:
+        root = data
+        editor_context["node"] = data
 
     with st.container(width=width):
         __render_structure_editor_node(
@@ -1245,7 +1253,7 @@ def data_editor(
     In case when expand_all_label or collapse_all_label are provided,
     top level node will contain expand all or collapse all buttons respectively.
 
-    data: root dict or list.
+    data: root dict, list or Node. In case of Node, editor will be refreshed if the value changes (so user can set the editor by a new Node while it's opened)
 
     key: unique identifier for this editor instance.
 
@@ -1282,6 +1290,10 @@ def data_editor(
     editor_context = context[key]
     root: Node = editor_context["node"]
 
+    if isinstance(data, Node) and data != root:
+        root = data
+        editor_context["node"] = data
+
     with st.container(border=True, width=width):
         if expand_all_label or collapse_all_label:
             with st.container(horizontal=True):
@@ -1317,3 +1329,118 @@ def data_editor(
                 )
 
     return root
+
+class CodeEditorValidationMessage:
+    def __init__(
+        self,
+        text: str,
+        row: int,
+        column: int,
+        type: Literal["error", "warning", "info"] = "error",
+    ) -> None:
+        self._text = text
+        self._row = row - 1
+        self._column = column - 1
+        self._type: Literal["error", "warning", "info"] = type
+
+    @property
+    def row(self) -> int:
+        return self._row
+
+    @property
+    def column(self) -> int:
+        return self._column
+
+    @property
+    def text(self) -> str:
+        return self._text
+
+    @property
+    def type(self) -> Literal["error", "warning", "info"]:
+        return self._type
+
+    def to_dict(self) -> dict[str, int | str]:
+        return {
+            "row": self.row,
+            "column": self.column,
+            "type": self.type,
+            "text": self.text,
+        }
+
+def code_editor(
+    value: str,
+    language: Literal["abap", "abc", "actionscript", "ada", "alda", "apache_conf", "apex", "applescript", "aql", "asciidoc", "asl", "assembly_x86", "autohotkey", "batchfile", "c9search", "c_cpp", "cirru", "clojure", "cobol", "coffee", "coldfusion", "crystal", "csharp", "csound_document", "csound_orchestra", "csound_score", "csp", "css", "curly", "d", "dart", "diff", "django", "dockerfile", "dot", "drools", "edifact", "eiffel", "ejs", "elixir", "elm", "erlang", "forth", "fortran", "fsharp", "fsl", "ftl", "gcode", "gherkin", "gitignore", "glsl", "gobstones", "golang", "graphqlschema", "groovy", "haml", "handlebars", "haskell", "haskell_cabal", "haxe", "hjson", "html", "html_elixir", "html_ruby", "ini", "io", "jack", "jade", "java", "javascript", "json", "json5", "jsoniq", "jsp", "jssm", "jsx", "julia", "kotlin", "latex", "less", "liquid", "lisp", "livescript", "logiql", "logtalk", "lsl", "lua", "luapage", "lucene", "makefile", "markdown", "mask", "matlab", "maze", "mediawiki", "mel", "mixal", "mushcode", "mysql", "nginx", "nim", "nix", "nsis", "nunjucks", "objectivec", "ocaml", "pascal", "perl", "perl6", "pgsql", "php", "php_laravel_blade", "pig", "plain_text", "powershell", "praat", "prisma", "prolog", "properties", "protobuf", "puppet", "python", "qml", "r", "razor", "rdoc", "red", "redshift", "rhtml", "rst", "ruby", "rust", "sass", "scad", "scala", "scheme", "scss", "sh", "sjs", "slim", "smarty", "snippets", "soy_template", "space", "sparql", "sql", "sqlserver", "stylus", "svg", "swift", "tcl", "terraform", "tex", "text", "textile", "toml", "tsx", "turtle", "twig", "typescript", "vala", "vbscript", "velocity", "verilog", "vhdl", "visualforce", "wollok", "xml", "xquery", "yaml"],
+    key: str,
+    context: dict[str, Any],
+    validator: Callable[[str], Iterable[CodeEditorValidationMessage]] | None = None,
+    spaces_per_tab: int = 4,
+    keybinding: Literal["emacs", "sublime", "vim", "vscode"] = "vscode",
+    theme: Literal["ambiance", "chaos", "chrome", "clouds", "clouds_midnight", "cobalt", "crimson_editor", "dawn", "dracula", "dreamweaver", "eclipse", "github", "gob", "gruvbox", "idle_fingers", "iplastic", "katzenmilch", "kr_theme", "kuroir", "merbivore", "merbivore_soft", "mono_industrial", "monokai", "nord_dark", "pastel_on_dark", "solarized_dark", "solarized_light", "sqlserver", "terminal", "textmate", "tomorrow", "tomorrow_night", "tomorrow_night_blue", "tomorrow_night_bright", "tomorrow_night_eighties", "twilight", "vibrant_ink", "xcode"
+] | None = None
+) -> str | None:
+    """
+    A code editor. Wraps the streamlit_ace code editor under the hood.
+
+    If theme argument is not provided or unknown then a theme applied based on 'theme.base' value in Streamlit config ('dracula' for 'dark', 'xcode' in other cases)
+
+    Returns None if validator returns any messages, otherwise return string from the editor.
+    """
+
+    if key not in context:
+        config_options = st_config.get_config_options()
+        if not theme or theme not in THEMES:
+            theme_base = config_options.get("theme.base").value
+            if theme_base and theme_base == "dark":
+                theme = "dracula"
+            else:
+                theme = "xcode"
+
+        font_base = config_options.get("theme.baseFontSize").value
+        if not font_base:
+            font_base = 16
+
+        editor_conxext = {
+            "last_result": value,
+            "last_validated_result": None,
+            "validator": validator if validator and isinstance(validator, Callable) else lambda result: None,
+            "validaton_messages": None,
+            "theme": theme,
+            "font_size": math.ceil(font_base * 0.875)
+        }
+
+        context[key] = editor_conxext
+
+    else:
+        editor_conxext = context[key]
+
+    result = editor_conxext["last_result"]
+
+    if result != editor_conxext["last_validated_result"]:
+        editor_conxext["last_validated_result"] = result
+        validations: Iterable[CodeEditorValidationMessage] | None = editor_conxext["validator"](result)
+
+        if validations:
+            editor_conxext["validaton_messages"] = [validation.to_dict() for validation in validations]
+            
+        else:
+            editor_conxext["validaton_messages"] = None
+
+    result = st_ace(
+        value=editor_conxext["last_result"],
+        language=language,
+        theme=editor_conxext["theme"],
+        keybinding=keybinding,
+        font_size=editor_conxext["font_size"],
+        tab_size=spaces_per_tab,
+        wrap=False,
+        auto_update=True,
+        annotations=editor_conxext["validaton_messages"],
+        key=key
+    )
+
+    editor_conxext["last_result"] = result 
+            
+    if editor_conxext["validaton_messages"]:
+        return None
+
+    return result
