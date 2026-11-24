@@ -1399,48 +1399,60 @@ def code_editor(
         if not font_base:
             font_base = 16
 
-        editor_conxext = {
+        editor_context = {
             "last_result": value,
             "last_validated_result": None,
+            "valid_result": None,
             "validator": validator if validator and isinstance(validator, Callable) else lambda result: None,
             "validaton_messages": None,
             "theme": theme,
             "font_size": math.ceil(font_base * 0.875)
         }
 
-        context[key] = editor_conxext
+        context[key] = editor_context
 
     else:
-        editor_conxext = context[key]
+        editor_context = context[key]
 
-    result = editor_conxext["last_result"]
+    last_result = editor_context["last_result"]
 
-    if result != editor_conxext["last_validated_result"]:
-        editor_conxext["last_validated_result"] = result
-        validations: Iterable[CodeEditorValidationMessage] | None = editor_conxext["validator"](result)
+    if last_result != editor_context["last_validated_result"]:
+        editor_context["last_validated_result"] = last_result
+        validations: Iterable[CodeEditorValidationMessage] | None = editor_context["validator"](last_result)
 
         if validations:
-            editor_conxext["validaton_messages"] = [validation.to_dict() for validation in validations]
+            editor_context["validaton_messages"] = [validation.to_dict() for validation in validations]
+            editor_context["valid_result"] = None
             
         else:
-            editor_conxext["validaton_messages"] = None
+            editor_context["validaton_messages"] = None
+            editor_context["valid_result"] = last_result
 
-    result = st_ace(
-        value=editor_conxext["last_result"],
+    current_result = st_ace(
+        value=editor_context["last_result"],
         language=language,
-        theme=editor_conxext["theme"],
+        theme=editor_context["theme"],
         keybinding=keybinding,
-        font_size=editor_conxext["font_size"],
+        font_size=editor_context["font_size"],
         tab_size=spaces_per_tab,
         wrap=False,
         auto_update=True,
-        annotations=editor_conxext["validaton_messages"],
+        annotations=editor_context["validaton_messages"],
         key=key
     )
 
-    editor_conxext["last_result"] = result 
-            
-    if editor_conxext["validaton_messages"]:
-        return None
+    if current_result != last_result:
+        editor_context["last_result"] = current_result
+        editor_context["last_validated_result"] = current_result
 
-    return result
+        validations: Iterable[CodeEditorValidationMessage] | None = editor_context["validator"](current_result)
+
+        if validations:
+            editor_context["validaton_messages"] = [validation.to_dict() for validation in validations]
+            editor_context["valid_result"] = None
+            
+        else:
+            editor_context["validaton_messages"] = None
+            editor_context["valid_result"] = current_result
+
+    return editor_context["valid_result"]
